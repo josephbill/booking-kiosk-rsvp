@@ -286,8 +286,23 @@ document.getElementById('retryBtn').addEventListener('click', () => loadSummary(
 document.getElementById('logoutLink').addEventListener('click', async (e) => {
   e.preventDefault();
   showOverlay('Signing out…');
-  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
-  window.location.href = '/auth/login';
+  try {
+    const res = await fetch('/auth/logout', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin',   // ← ensure cookie is sent
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      hideOverlay();
+      alert('Logout failed: ' + (data.error || 'Please try again.'));
+      return;
+    }
+    window.location.href = '/auth/login?loggedout=1';
+  } catch (err) {
+    hideOverlay();
+    alert('Logout failed: ' + (err.message || 'Network error.'));
+  }
 });
 
 /* ---------- Init ---------- */

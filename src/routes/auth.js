@@ -6,7 +6,13 @@ const { loginLimiter } = require('../middleware/rateLimit');
 const path = require('path');
 
 router.get('/login', (req, res) => {
-  if (req.user) return res.redirect('/admin/dashboard');
+  if (req.user) {
+    // If we just logged out, don't bounce back
+    if (req.query.loggedout === '1') {
+      return res.sendFile(path.join(__dirname, '..', '..', 'views', 'admin', 'login.html'));
+    }
+    return res.redirect('/admin/dashboard');
+  }
   res.sendFile(path.join(__dirname, '..', '..', 'views', 'admin', 'login.html'));
 });
 
@@ -22,8 +28,19 @@ router.post('/login', loginLimiter, async (req, res) => {
   res.json({ ok: true, redirect: '/admin/dashboard' });
 });
 
+// router.post('/logout', (req, res) => {
+//   req.session.destroy(() => res.json({ ok: true }));
+// });
+// src/routes/auth.js
 router.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('[logout] session destroy failed:', err.message);
+      return res.status(500).json({ ok: false, error: 'Logout failed' });
+    }
+    res.clearCookie('connect.sid');  // ← important
+    res.json({ ok: true });
+  });
 });
 
 module.exports = router;
