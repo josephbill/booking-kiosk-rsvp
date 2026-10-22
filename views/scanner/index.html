@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d6efd">
+<title>Check-In Scanner</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  html, body {
+    min-height: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: #0f1115;
+    color: #e9ecef;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .scanner-shell {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: .75rem .75rem 2rem;
+  }
+
+  /* Top bar */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .75rem;
+    color: #e9ecef;
+  }
+  .top-bar h1 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  .staff-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .75rem;
+    padding: .25rem .55rem;
+    border-radius: 999px;
+    background: rgba(13,110,253,.18);
+    color: #8fb8ff;
+    border: 1px solid rgba(13,110,253,.35);
+  }
+
+  /* Camera stage */
+  .camera-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    max-height: 62vh;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid #222;
+    box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  }
+  @media (min-width: 520px) {
+    .camera-stage { aspect-ratio: 4 / 3; max-height: none; }
+  }
+
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #000;
+  }
+
+  /* Darkened corners with a scan window */
+  .camera-frame {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(to right,  rgba(0,0,0,.55) 0, rgba(0,0,0,.55) 12%, transparent 12%, transparent 88%, rgba(0,0,0,.55) 88%, rgba(0,0,0,.55) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,.55) 0, rgba(0,0,0,.55) 12%, transparent 12%, transparent 88%, rgba(0,0,0,.55) 88%, rgba(0,0,0,.55) 100%);
+  }
+  .camera-frame .corner {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border: 3px solid #19d48a;
+    border-radius: 8px;
+  }
+  .camera-frame .corner.tl { top: 14%; left: 14%; border-right: 0; border-bottom: 0; }
+  .camera-frame .corner.tr { top: 14%; right: 14%; border-left: 0; border-bottom: 0; }
+  .camera-frame .corner.bl { bottom: 14%; left: 14%; border-right: 0; border-top: 0; }
+  .camera-frame .corner.br { bottom: 14%; right: 14%; border-left: 0; border-top: 0; }
+
+  /* Animated scan line */
+  .scan-line {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #19d48a, transparent);
+    box-shadow: 0 0 12px rgba(25,212,138,.8);
+    top: 12%;
+    animation: scanLine 2.4s ease-in-out infinite;
+    opacity: 0;
+  }
+  .scanner-active .scan-line { opacity: 1; }
+  @keyframes scanLine {
+    0%   { top: 12%; }
+    50%  { top: 86%; }
+    100% { top: 12%; }
+  }
+
+  /* Overlay when camera not started / error */
+  .stage-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
+    color: #e9ecef;
+    background: rgba(15,17,21,.75);
+    backdrop-filter: blur(2px);
+  }
+  .stage-overlay i { font-size: 2.5rem; opacity: .8; margin-bottom: .5rem; }
+  .stage-overlay .hint { font-size: .85rem; opacity: .75; }
+
+  /* Camera controls */
+  .cam-controls {
+    display: flex;
+    gap: .5rem;
+    margin-top: .75rem;
+  }
+  .cam-controls .btn { font-weight: 600; }
+
+  /* Status pill under camera */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .8rem;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    margin-top: .6rem;
+    background: rgba(255,255,255,.08);
+    color: #cfd4da;
+    border: 1px solid rgba(255,255,255,.12);
+  }
+  .status-pill .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #6c757d;
+  }
+  .status-pill.live .dot { background: #19d48a; box-shadow: 0 0 8px #19d48a; animation: pulse 1.4s infinite; }
+  .status-pill.paused .dot { background: #ffc107; }
+  .status-pill.error .dot { background: #dc3545; }
+  @keyframes pulse { 0%{opacity:1} 50%{opacity:.4} 100%{opacity:1} }
+
+  /* Manual entry */
+  .manual-card {
+    background: #171a1f;
+    border: 1px solid #232830;
+    border-radius: 14px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  .manual-card .form-label { color: #cfd4da; font-size: .85rem; font-weight: 600; }
+  .manual-card .form-control {
+    background: #0f1115;
+    color: #e9ecef;
+    border-color: #2b3240;
+  }
+  .manual-card .form-control:focus {
+    background: #0f1115;
+    color: #e9ecef;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 .2rem rgba(13,110,253,.25);
+  }
+
+  /* Result card */
+  .result {
+    margin-top: 1rem;
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    animation: slideUp .22s ease-out;
+  }
+  .result .ic { font-size: 1.6rem; line-height: 1; }
+  .result .title { font-weight: 700; font-size: 1.05rem; margin-bottom: .1rem; }
+  .result .body { font-size: .9rem; opacity: .9; }
+  .result .meta { font-size: .8rem; opacity: .7; margin-top: .3rem; }
+
+  .result.success { background: rgba(25,212,138,.12); border: 1px solid rgba(25,212,138,.35); color: #b6f3d5; }
+  .result.warn    { background: rgba(255,193,7,.10); border: 1px solid rgba(255,193,7,.35); color: #ffdf9a; }
+  .result.danger  { background: rgba(220,53,69,.12); border: 1px solid rgba(220,53,69,.4);  color: #ffb3b9; }
+  .result.info    { background: rgba(13,110,253,.12); border: 1px solid rgba(13,110,253,.35); color: #bcd3ff; }
+
+  .result .result-actions {
+    display: flex;
+    gap: .5rem;
+    margin-top: .75rem;
+  }
+
+  @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* Party size badge in result */
+  .party-badge {
+    display: inline-block;
+    font-size: .78rem;
+    font-weight: 700;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,.14);
+    margin-left: .35rem;
+  }
+
+  /* Buttons spinners */
+  .btn .spinner-border-sm { margin-right: .35rem; }
+
+  /* Small-screen polish */
+  @media (max-width: 400px) {
+    .top-bar h1 { font-size: .95rem; }
+    .result .title { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="scanner-shell" id="scanner">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <h1><i class="bi bi-upc-scan me-1"></i> Check-In</h1>
+    <span class="staff-chip" id="staffChip">
+      <i class="bi bi-person-badge"></i>
+      <span id="staffName">Staff</span>
+    </span>
+  </div>
+
+  <!-- Camera stage -->
+  <div class="camera-stage" id="cameraStage">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas" class="d-none"></canvas>
+
+    <div class="camera-frame">
+      <span class="corner tl"></span>
+      <span class="corner tr"></span>
+      <span class="corner bl"></span>
+      <span class="corner br"></span>
+      <div class="scan-line"></div>
+    </div>
+
+    <!-- Overlay: not started -->
+    <div class="stage-overlay" id="overlayStart">
+      <i class="bi bi-camera-video"></i>
+      <div>Tap <strong>Start Camera</strong> to scan</div>
+      <div class="hint">Point at the guest's QR code</div>
+    </div>
+
+    <!-- Overlay: error -->
+    <div class="stage-overlay d-none" id="overlayError">
+      <i class="bi bi-camera-video-off text-warning"></i>
+      <div id="errorTitle">Camera unavailable</div>
+      <div class="hint" id="errorHint">Use manual entry below</div>
+    </div>
+
+    <!-- Overlay: paused/processing -->
+    <div class="stage-overlay d-none" id="overlayPaused">
+      <div class="spinner-border text-primary" role="status"></div>
+      <div class="mt-2" id="pausedText">Processing…</div>
+    </div>
+  </div>
+
+  <!-- Status pill -->
+  <div class="text-center">
+    <span class="status-pill" id="statusPill">
+      <span class="dot"></span>
+      <span id="statusText">Camera off</span>
+    </span>
+  </div>
+
+  <!-- Camera controls -->
+  <div class="cam-controls">
+    <button class="btn btn-primary flex-fill" id="startBtn">
+      <i class="bi bi-camera-video"></i> Start Camera
+    </button>
+    <button class="btn btn-outline-light flex-fill" id="stopBtn" disabled>
+      <i class="bi bi-stop-circle"></i> Stop
+    </button>
+  </div>
+
+  <!-- Manual entry -->
+  <div class="manual-card">
+    <label class="form-label" for="manualInput">
+      <i class="bi bi-keyboard me-1"></i> Manual entry fallback
+    </label>
+    <div class="input-group">
+      <input
+        class="form-control"
+        id="manualInput"
+        placeholder="Paste or type QR token"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false">
+      <button class="btn btn-outline-light" id="manualBtn">
+        <span class="btn-label">Submit</span>
+      </button>
+    </div>
+    <div class="form-text text-secondary small mt-1">
+      Use this if the camera is unavailable or the code won't scan.
+    </div>
+  </div>
+
+  <!-- Result area -->
+  <div id="result" aria-live="polite"></div>
+
+  <!-- Resume scanning -->
+  <div class="text-center mt-3 d-none" id="resumeWrap">
+    <button class="btn btn-outline-light btn-sm" id="resumeBtn">
+      <i class="bi bi-arrow-clockwise"></i> Ready for next guest
+    </button>
+  </div>
+</div>
+
+<script src="/js/scanner.js"></script>
+</body>
+</html>

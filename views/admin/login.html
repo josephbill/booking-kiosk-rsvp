@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In – RSVP Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  html, body { height: 100%; }
+  body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+    min-height: 100vh;
+  }
+
+  .login-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 440px;
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
+  }
+
+  .login-card .card-body { padding: 2rem 2rem 1.75rem; }
+
+  .brand-mark {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #0d6efd, #0a58ca);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    margin-bottom: .75rem;
+  }
+
+  .form-control:focus {
+    box-shadow: 0 0 0 .2rem rgba(13,110,253,.15);
+  }
+
+  /* Password toggle */
+  .pw-toggle {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  /* Button spinner */
+  .btn .spinner-border-sm { margin-right: .5rem; }
+
+  /* Shake animation for invalid submit */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+  .shake { animation: shake .35s ease-in-out; }
+
+  /* Attempt warning (rate limit countdown) */
+  #attemptWarn { font-size: .85rem; }
+
+  /* Show error with fade in */
+  .alert { animation: fadeIn .2s ease-out; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+</style>
+</head>
+<body>
+<div class="login-shell">
+  <div class="card login-card">
+    <div class="card-body">
+      <div class="text-center mb-4">
+        <div class="brand-mark"><i class="bi bi-shield-lock"></i></div>
+        <h1 class="h4 mb-1 fw-semibold">Sign in to Admin</h1>
+        <p class="text-muted small mb-0">RSVP &amp; Event Attendance</p>
+      </div>
+
+      <!-- Error / rate-limit banner -->
+      <div id="err" class="alert alert-danger d-none py-2 px-3" role="alert"></div>
+      <div id="attemptWarn" class="text-warning d-none mb-2"></div>
+
+      <form id="loginForm" novalidate>
+        <div class="mb-3">
+          <label for="email" class="form-label">Email address</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-envelope"></i></span>
+            <input
+              id="email"
+              type="email"
+              class="form-control"
+              name="email"
+              required
+              autocomplete="username"
+              autofocus
+              placeholder="you@booking-kiosk.com"
+              inputmode="email">
+          </div>
+          <div class="invalid-feedback d-block small mt-1" id="emailErr"></div>
+        </div>
+
+        <div class="mb-3">
+          <label for="password" class="form-label">Password</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+            <input
+              id="password"
+              type="password"
+              class="form-control"
+              name="password"
+              required
+              autocomplete="current-password"
+              placeholder="••••••••">
+            <button
+              type="button"
+              class="btn btn-outline-secondary pw-toggle"
+              id="pwToggle"
+              aria-label="Show password"
+              tabindex="-1">
+              <i class="bi bi-eye" id="pwIcon"></i>
+            </button>
+          </div>
+          <div class="invalid-feedback d-block small mt-1" id="passwordErr"></div>
+        </div>
+
+        <button class="btn btn-primary w-100 py-2" type="submit" id="submitBtn">
+          <span class="btn-label"><i class="bi bi-box-arrow-in-right"></i> Sign In</span>
+        </button>
+      </form>
+
+      <p class="text-center text-muted small mt-4 mb-0">
+        Lost your credentials? Contact your administrator.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Element refs ---------- */
+const form = document.getElementById('loginForm');
+const errEl = document.getElementById('err');
+const attemptWarn = document.getElementById('attemptWarn');
+const submitBtn = document.getElementById('submitBtn');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const emailErr = document.getElementById('emailErr');
+const passwordErr = document.getElementById('passwordErr');
+const pwToggle = document.getElementById('pwToggle');
+const pwIcon = document.getElementById('pwIcon');
+
+/* ---------- Password visibility toggle ---------- */
+pwToggle.addEventListener('click', () => {
+  const isPw = passwordInput.type === 'password';
+  passwordInput.type = isPw ? 'text' : 'password';
+  pwIcon.className = isPw ? 'bi bi-eye-slash' : 'bi bi-eye';
+  pwToggle.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+  passwordInput.focus();
+});
+
+/* ---------- Inline validation helpers ---------- */
+function setFieldError(input, el, msg) {
+  if (msg) {
+    input.classList.add('is-invalid');
+    el.textContent = msg;
+  } else {
+    input.classList.remove('is-invalid');
+    el.textContent = '';
+  }
+}
+function validEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+function validate() {
+  let ok = true;
+  setFieldError(emailInput, emailErr, '');
+  setFieldError(passwordInput, passwordErr, '');
+
+  const email = emailInput.value.trim();
+  if (!email) { setFieldError(emailInput, emailErr, 'Email is required.'); ok = false; }
+  else if (!validEmail(email)) { setFieldError(emailInput, emailErr, 'Enter a valid email address.'); ok = false; }
+
+  if (!passwordInput.value) { setFieldError(passwordInput, passwordErr, 'Password is required.'); ok = false; }
+  else if (passwordInput.value.length < 4) { setFieldError(passwordInput, passwordErr, 'Password is too short.'); ok = false; }
+
+  return ok;
+}
+
+/* Clear field error as the user types */
+emailInput.addEventListener('input', () => setFieldError(emailInput, emailErr, ''));
+passwordInput.addEventListener('input', () => setFieldError(passwordInput, passwordErr, ''));
+
+/* ---------- Error / rate-limit display ---------- */
+function showError(msg) {
+  errEl.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(msg)}`;
+  errEl.classList.remove('d-none');
+  errEl.classList.add('shake');
+  setTimeout(() => errEl.classList.remove('shake'), 400);
+}
+function hideError() {
+  errEl.classList.add('d-none');
+  errEl.textContent = '';
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+/* ---------- Attempt warning countdown ---------- */
+let attemptTimer = null;
+function showRateLimitWarning(seconds) {
+  clearInterval(attemptTimer);
+  let remaining = seconds;
+  const render = () => {
+    attemptWarn.textContent = `Too many attempts. Try again in ${remaining}s.`;
+    attemptWarn.classList.remove('d-none');
+  };
+  render();
+  attemptTimer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(attemptTimer);
+      attemptWarn.classList.add('d-none');
+    } else {
+      render();
+    }
+  }, 1000);
+}
+
+/* ---------- Submit button spinner ---------- */
+function setSubmitting(on) {
+  submitBtn.disabled = on;
+  if (on) {
+    submitBtn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status"></span>
+      <span class="btn-label">Signing in…</span>`;
+  } else {
+    submitBtn.innerHTML = `
+      <span class="btn-label"><i class="bi bi-box-arrow-in-right"></i> Sign In</span>`;
+  }
+}
+
+/* ---------- Submit ---------- */
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideError();
+
+  if (!validate()) {
+    form.classList.add('shake');
+    setTimeout(() => form.classList.remove('shake'), 400);
+    return;
+  }
+
+  setSubmitting(true);
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        email: emailInput.value.trim(),
+        password: passwordInput.value,
+      }),
+    });
+
+    // Rate limit (429)
+    if (res.status === 429) {
+      showError('Too many login attempts. Please wait before trying again.');
+      showRateLimitWarning(60);
+      setSubmitting(false);
+      return;
+    }
+
+    // Try JSON — but guard against empty/non-JSON bodies
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+      showError(data.error || 'Login failed. Check your credentials.');
+      passwordInput.value = '';
+      passwordInput.focus();
+      setSubmitting(false);
+      return;
+    }
+
+    // Success — brief confirmation before navigating
+    submitBtn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status"></span>
+      <span class="btn-label">Redirecting…</span>`;
+    window.location.href = data.redirect || '/admin/dashboard';
+  } catch (err) {
+    showError('Network error. Please check your connection and try again.');
+    setSubmitting(false);
+  }
+});
+</script>
+</body>
+</html>

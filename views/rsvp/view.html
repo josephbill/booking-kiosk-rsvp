@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSVP – You're Invited</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  html, body { min-height: 100%; }
+  body {
+    background: linear-gradient(135deg, #eef2f7 0%, #e6ecf2 100%);
+    min-height: 100vh;
+  }
+
+  .rsvp-wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .invite-card {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
+    overflow: hidden;
+  }
+
+  .invite-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: #fff;
+    padding: 2rem 2rem 1.75rem;
+    text-align: center;
+  }
+
+  .invite-header .badge-invite {
+    background: rgba(255,255,255,.18);
+    color: #fff;
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: .35rem .75rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .invite-header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: .75rem 0 .35rem;
+  }
+
+  .invite-header .meta {
+    opacity: .92;
+    font-size: .92rem;
+  }
+
+  .invite-body { padding: 1.75rem 2rem 2rem; }
+
+  /* Skeleton */
+  .skeleton {
+    display: inline-block; height: 1em; width: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #e9ecef 25%, #f4f5f7 50%, #e9ecef 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* Party-size stepper */
+  .stepper {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: .5rem;
+    margin: 1rem 0 1.25rem;
+  }
+  .stepper .step-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 600;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    color: #0d6efd;
+    transition: all .15s;
+  }
+  .stepper .step-btn:hover:not(:disabled) {
+    background: #e7f1ff;
+    border-color: #0d6efd;
+  }
+  .stepper .step-btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+  .stepper .step-value {
+    flex: 0 0 auto;
+    min-width: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    font-weight: 700;
+    font-size: 1.75rem;
+    color: #212529;
+    line-height: 1;
+  }
+  .stepper .step-value small {
+    font-size: .72rem;
+    font-weight: 500;
+    color: #6c757d;
+    margin-top: .35rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  /* Big action buttons */
+  .btn-hero {
+    padding: .9rem 1.1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    width: 100%;
+  }
+  .btn-hero + .btn-hero { margin-top: .65rem; }
+
+  @media (min-width: 520px) {
+    .btn-hero { width: auto; min-width: 200px; margin: 0 .25rem !important; }
+  }
+
+  /* Success / info panels */
+  .panel {
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    animation: fadeIn .25s ease-out;
+  }
+  .panel .panel-icon { font-size: 1.4rem; line-height: 1; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+  /* Shake on error */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+  .shake { animation: shake .35s ease-in-out; }
+
+  /* Button spinner */
+  .btn .spinner-border-sm { margin-right: .45rem; }
+</style>
+</head>
+<body>
+<div class="rsvp-wrap">
+
+  <!-- LOADING SKELETON -->
+  <div id="loading" class="invite-card card">
+    <div class="invite-header" style="background: linear-gradient(135deg,#8fb8ff,#6d9ee8)">
+      <div class="badge-invite d-inline-block"><span class="skeleton" style="width:80px;background:rgba(255,255,255,.3)"></span></div>
+      <div style="height:1.6rem;margin-top:.75rem"><span class="skeleton" style="width:70%;background:rgba(255,255,255,.3);height:1.2rem"></span></div>
+      <div style="height:1rem;margin-top:.35rem"><span class="skeleton" style="width:50%;background:rgba(255,255,255,.3)"></span></div>
+    </div>
+    <div class="invite-body">
+      <div class="mb-3"><span class="skeleton" style="width:40%"></span></div>
+      <div class="mb-2"><span class="skeleton" style="width:95%"></span></div>
+      <div class="mb-2"><span class="skeleton" style="width:88%"></span></div>
+      <div class="mb-4"><span class="skeleton" style="width:60%"></span></div>
+      <div class="d-flex gap-2">
+        <div style="flex:1"><span class="skeleton" style="width:100%;height:2.5rem"></span></div>
+        <div style="flex:1"><span class="skeleton" style="width:100%;height:2.5rem"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ERROR STATE -->
+  <div id="error" class="card invite-card d-none">
+    <div class="card-body text-center py-5">
+      <i class="bi bi-envelope-x text-danger" style="font-size:2.5rem"></i>
+      <h2 class="h5 mt-3">Invitation not found</h2>
+      <p class="text-muted mb-0" id="errorText">This invitation link is invalid or has expired.</p>
+      <p class="text-muted small mt-3 mb-0">
+        If you believe this is an error, please contact the event organizer.
+      </p>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div id="content" class="d-none">
+
+    <!-- Invitation card -->
+    <div class="invite-card card">
+      <div class="invite-header">
+        <span class="badge-invite">You're Invited</span>
+        <h1 id="eventName">Event Name</h1>
+        <div class="meta">
+          <div><i class="bi bi-calendar-event me-1"></i><span id="eventDate">—</span></div>
+          <div class="mt-1"><i class="bi bi-geo-alt me-1"></i><span id="eventVenue">—</span></div>
+        </div>
+      </div>
+
+      <div class="invite-body">
+        <p id="eventDesc" class="text-muted mb-3 d-none"></p>
+
+        <p class="fs-5 mb-3">Dear <strong id="inviteeName">Guest</strong>,</p>
+
+        <!-- Already-responded panel -->
+        <div id="alreadyResponded" class="panel alert alert-info border-0 d-none">
+          <div class="panel-icon"><i class="bi bi-info-circle"></i></div>
+          <div class="flex-grow-1">
+            <div class="fw-semibold" id="alreadyTitle">Response recorded</div>
+            <div class="small" id="alreadyBody"></div>
+          </div>
+        </div>
+
+        <!-- Actions: yes / no -->
+        <div id="actions" class="d-none">
+          <p class="mb-3">Will you be joining us?</p>
+          <div class="text-center text-sm-start">
+            <button type="button" class="btn btn-success btn-hero" id="yesBtn">
+              <i class="bi bi-check-circle"></i> Yes, I'll attend
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-hero" id="noBtn">
+              <i class="bi bi-x-circle"></i> No, I won't attend
+            </button>
+          </div>
+        </div>
+
+        <!-- Party size form -->
+        <div id="partyForm" class="d-none">
+          <p class="fw-semibold mb-1">How many people in your party?</p>
+          <p class="text-muted small mb-3" id="partyHint">Choose between 1 and N.</p>
+
+          <div class="stepper" role="group" aria-label="Party size selector">
+            <button type="button" class="step-btn" id="minusBtn" aria-label="Decrease party size">
+              <i class="bi bi-dash-lg"></i>
+            </button>
+            <div class="step-value" aria-live="polite">
+              <span id="partyValue">1</span>
+              <small>guest<span id="plural">s</span></small>
+            </div>
+            <button type="button" class="step-btn" id="plusBtn" aria-label="Increase party size">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+
+          <div id="partyError" class="text-danger small text-center mb-2 d-none"></div>
+
+          <div class="text-center">
+            <button type="button" class="btn btn-primary btn-hero" id="confirmBtn">
+              <span class="btn-label"><i class="bi bi-check2"></i> Confirm attendance</span>
+            </button>
+            <button type="button" class="btn btn-link btn-sm mt-2" id="cancelBtn">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Success panel (after accepting) -->
+        <div id="successMsg" class="panel alert alert-success border-0 d-none">
+          <div class="panel-icon"><i class="bi bi-check-circle-fill"></i></div>
+          <div class="flex-grow-1">
+            <div class="fw-semibold" id="successTitle">You're confirmed!</div>
+            <div class="small" id="successBody"></div>
+          </div>
+        </div>
+
+        <!-- Declined panel (after declining) -->
+        <div id="declinedMsg" class="panel alert alert-secondary border-0 d-none">
+          <div class="panel-icon"><i class="bi bi-envelope-paper"></i></div>
+          <div class="flex-grow-1">
+            <div class="fw-semibold">Response recorded</div>
+            <div class="small" id="declinedBody">
+              We're sorry you can't make it. Thank you for letting us know.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footer note -->
+    <p class="text-center text-muted small mt-3 mb-0">
+      This link is unique to you. Please don't share it.
+    </p>
+  </div>
+</div>
+
+<!-- Decline confirmation modal -->
+<div class="modal fade" id="declineModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0" style="border-radius:14px">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title">Decline invitation?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          Are you sure you won't be attending? Once you decline, you
+          won't be able to change your response here.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Go back</button>
+        <button type="button" class="btn btn-outline-danger" id="declineConfirm">
+          <span class="btn-label"><i class="bi bi-x-circle"></i> Yes, decline</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ---------- Setup ---------- */
+const token = window.location.pathname.split('/').pop();
+let maxParty = 1;
+let partySize = 1;
+let currentStatus = 'pending';
+
+const els = {
+  loading: document.getElementById('loading'),
+  error: document.getElementById('error'),
+  errorText: document.getElementById('errorText'),
+  content: document.getElementById('content'),
+  eventName: document.getElementById('eventName'),
+  eventDate: document.getElementById('eventDate'),
+  eventVenue: document.getElementById('eventVenue'),
+  eventDesc: document.getElementById('eventDesc'),
+  inviteeName: document.getElementById('inviteeName'),
+  already: document.getElementById('alreadyResponded'),
+  alreadyTitle: document.getElementById('alreadyTitle'),
+  alreadyBody: document.getElementById('alreadyBody'),
+  actions: document.getElementById('actions'),
+  partyForm: document.getElementById('partyForm'),
+  partyHint: document.getElementById('partyHint'),
+  partyValue: document.getElementById('partyValue'),
+  partyError: document.getElementById('partyError'),
+  plural: document.getElementById('plural'),
+  minusBtn: document.getElementById('minusBtn'),
+  plusBtn: document.getElementById('plusBtn'),
+  confirmBtn: document.getElementById('confirmBtn'),
+  cancelBtn: document.getElementById('cancelBtn'),
+  successMsg: document.getElementById('successMsg'),
+  successTitle: document.getElementById('successTitle'),
+  successBody: document.getElementById('successBody'),
+  declinedMsg: document.getElementById('declinedMsg'),
+  declinedBody: document.getElementById('declinedBody'),
+  yesBtn: document.getElementById('yesBtn'),
+  noBtn: document.getElementById('noBtn'),
+  declineModal: new bootstrap.Modal(document.getElementById('declineModal')),
+  declineConfirm: document.getElementById('declineConfirm'),
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+/* ---------- Button spinner helper ---------- */
+function setBtnLoading(btn, on, label) {
+  if (on) {
+    btn.dataset._html = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span>
+                     <span class="btn-label">${esc(label || 'Working…')}</span>`;
+  } else {
+    btn.disabled = false;
+    if (btn.dataset._html) btn.innerHTML = btn.dataset._html;
+  }
+}
+
+/* ---------- Render helpers ---------- */
+function formatEventDate(iso, timezone) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+      timeZone: timezone || undefined,
+    });
+  } catch (_) {
+    return new Date(iso).toLocaleString();
+  }
+}
+
+function showErrorState(msg) {
+  els.loading.classList.add('d-none');
+  els.content.classList.add('d-none');
+  els.error.classList.remove('d-none');
+  els.errorText.textContent = msg || 'This invitation link is invalid or has expired.';
+}
+
+function showActions() {
+  els.actions.classList.remove('d-none');
+  els.partyForm.classList.add('d-none');
+}
+
+function showPartyForm() {
+  els.actions.classList.add('d-none');
+  els.partyForm.classList.remove('d-none');
+  partySize = 1;
+  els.partyValue.textContent = partySize;
+  els.plural.textContent = partySize === 1 ? '' : 's';
+  els.partyHint.textContent = `Choose between 1 and ${maxParty}.`;
+  els.partyError.classList.add('d-none');
+  updateStepperState();
+}
+
+function updateStepperState() {
+  els.minusBtn.disabled = partySize <= 1;
+  els.plusBtn.disabled = partySize >= maxParty;
+}
+
+function showPanel(el) {
+  [els.successMsg, els.declinedMsg, els.already].forEach(x => {
+    if (x !== el) x.classList.add('d-none');
+  });
+  if (el) el.classList.remove('d-none');
+}
+
+/* ---------- Load invitation ---------- */
+async function init() {
+  try {
+    const r = await fetch('/rsvp/api/' + token, {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    if (r.status === 404) return showErrorState('Invitation not found.');
+    if (!r.ok) return showErrorState('Could not load invitation. Please try again.');
+
+    const data = await r.json();
+    maxParty = Math.max(1, data.maxPartySize || 1);
+    currentStatus = data.rsvpStatus;
+
+    els.loading.classList.add('d-none');
+    els.content.classList.remove('d-none');
+
+    els.eventName.textContent = data.event.name || 'Your Event';
+    els.eventDate.textContent = formatEventDate(data.event.date, data.event.timezone);
+    els.eventVenue.textContent = data.event.venue || '—';
+    if (data.event.description) {
+      els.eventDesc.textContent = data.event.description;
+      els.eventDesc.classList.remove('d-none');
+    }
+    els.inviteeName.textContent = data.inviteeName || 'Guest';
+
+    if (currentStatus === 'accepted') {
+      showPanel(els.already);
+      els.already.classList.add('alert-success');
+      els.already.classList.remove('alert-info');
+      els.alreadyTitle.textContent = 'You have confirmed attendance';
+      els.alreadyBody.innerHTML =
+        `Party of <strong>${data.confirmedPartySize}</strong> guest${data.confirmedPartySize === 1 ? '' : 's'}. ` +
+        `Your QR code has been emailed to you. Please present it at the entrance.`;
+      els.actions.classList.add('d-none');
+    } else if (currentStatus === 'declined') {
+      showPanel(els.already);
+      els.alreadyTitle.textContent = 'You have declined this invitation';
+      els.alreadyBody.textContent =
+        'If you change your mind, please contact the event organizer to reopen your invitation.';
+      els.actions.classList.add('d-none');
+    } else {
+      showActions();
+    }
+  } catch (e) {
+    showErrorState('Network error. Please refresh and try again.');
+  }
+}
+
+/* ---------- Yes / No ---------- */
+els.yesBtn.addEventListener('click', showPartyForm);
+els.cancelBtn.addEventListener('click', showActions);
+
+els.noBtn.addEventListener('click', () => els.declineModal.show());
+
+els.declineConfirm.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  setBtnLoading(btn, true, 'Declining…');
+  try {
+    const r = await fetch(`/rsvp/api/${token}/decline`, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+    });
+    const d = await r.json().catch(() => ({}));
+    els.declineModal.hide();
+
+    if (!r.ok) {
+      alert(d.error || 'Could not record your response. Please try again.');
+      return;
+    }
+    currentStatus = 'declined';
+    els.actions.classList.add('d-none');
+    els.partyForm.classList.add('d-none');
+    showPanel(els.declinedMsg);
+  } catch (err) {
+    alert('Network error. Please try again.');
+  } finally {
+    setBtnLoading(btn, false);
+  }
+});
+
+/* ---------- Stepper ---------- */
+els.minusBtn.addEventListener('click', () => {
+  partySize = Math.max(1, partySize - 1);
+  els.partyValue.textContent = partySize;
+  els.plural.textContent = partySize === 1 ? '' : 's';
+  els.partyError.classList.add('d-none');
+  updateStepperState();
+});
+els.plusBtn.addEventListener('click', () => {
+  partySize = Math.min(maxParty, partySize + 1);
+  els.partyValue.textContent = partySize;
+  els.plural.textContent = partySize === 1 ? '' : 's';
+  els.partyError.classList.add('d-none');
+  updateStepperState();
+});
+
+/* ---------- Confirm attendance ---------- */
+els.confirmBtn.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  if (partySize < 1 || partySize > maxParty) {
+    els.partyError.textContent = `Please choose between 1 and ${maxParty}.`;
+    els.partyError.classList.remove('d-none');
+    return;
+  }
+  els.partyError.classList.add('d-none');
+
+  setBtnLoading(btn, true, 'Confirming…');
+  try {
+    const r = await fetch(`/rsvp/api/${token}/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ partySize }),
+    });
+    const d = await r.json().catch(() => ({}));
+
+    if (!r.ok) {
+      els.partyError.textContent = d.error || 'Could not confirm your RSVP. Please try again.';
+      els.partyError.classList.remove('d-none');
+      return;
+    }
+
+    currentStatus = 'accepted';
+    els.partyForm.classList.add('d-none');
+    els.successTitle.textContent = "You're confirmed!";
+    els.successBody.innerHTML =
+      `Your party of <strong>${d.confirmedPartySize}</strong> guest${d.confirmedPartySize === 1 ? '' : 's'} is registered. ` +
+      `A QR code has been emailed to you — please present it at the entrance.`;
+    showPanel(els.successMsg);
+  } catch (err) {
+    els.partyError.textContent = 'Network error. Please check your connection and try again.';
+    els.partyError.classList.remove('d-none');
+  } finally {
+    setBtnLoading(btn, false);
+  }
+});
+
+/* ---------- Go ---------- */
+init();
+</script>
+</body>
+</html>
