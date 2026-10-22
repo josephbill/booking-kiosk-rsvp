@@ -2,7 +2,7 @@ services:
   - type: web
     name: booking-kiosk-rsvp
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /healthz
@@ -23,6 +23,12 @@ services:
         sync: false
       - key: EVENT_TIMEZONE
         sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -37,4 +43,3 @@ services:
         sync: false
       - key: EMAIL_FROM_NAME
         sync: false
-
