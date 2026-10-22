@@ -41,17 +41,21 @@ router.get('/checkins', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT i.invitee_name, i.invitee_email,
-              c.expected_party_size, c.actual_party_size,
+              c.expected_party_size,
+              c.initial_actual_party_size,
+              c.late_arrivals,
+              c.actual_party_size,
               (c.expected_party_size - c.actual_party_size) AS no_shows,
-              c.checked_in_at, u.name AS staff_name
+              c.checked_in_at, c.last_updated_at, u.name AS staff_name
        FROM checkins c
        JOIN invitations i ON i.id = c.invitation_id
        LEFT JOIN users u ON u.id = c.staff_id
        ORDER BY c.checked_in_at`
     );
     const csv = toCsv(
-      ['invitee_name','invitee_email','expected_party_size','actual_party_size',
-       'no_shows','checked_in_at','staff_name'],
+      ['invitee_name','invitee_email','expected_party_size',
+       'initial_actual_party_size','late_arrivals','actual_party_size',
+       'no_shows','checked_in_at','last_updated_at','staff_name'],
       rows
     );
     sendCsv(res, 'checkins.csv', csv);

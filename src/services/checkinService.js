@@ -79,6 +79,89 @@ async function validateAndCheckin(rawToken, staffId, actualPartySize) {
   });
 }
 
+async function addLateArrivals(rawToken, staffId, additionalCount) {
+  const hash = hashToken(rawToken);
+  return withTransaction(async (client) => {
+    // Lock the checkin row so two staff don't race each other
+    const ciRes = await client.query(
+      `SELECT c.*, i.invitee_name, i.confirmed_party_size, i.rsvp_status
+       FROM checkins c
+       JOIN invitations i ON i.id = c.invitation_id
+       JOIN qr_credentials qc ON qc.invitation_id = i.id
+       WHERE qc.qr_reference_hash = $1
+         AND qc.credential_status = 'active'
+       FOR UPDATE OF c`,
+      [hash]
+    );
+
+    if (!ciRes.rows.length) {
+      return { ok: false, reason: 'NO_CHECKIN', message: 'No active check-in found for this code.' };
+    }
+
+    const row = ciRes.rows[0];
+    const additional = parseInt(additionalCount, 10);
+    if (!Number.isInteger(additional) || additional < 1) {
+      return { ok: false, reason: 'INVALID_COUNT', message: 'Late arrivals must be at least 1.' };
+    }
+
+    const remaining = row.expected_party_size - row.actual_party_size;
+    if (remaining <= 0) {
+      return {
+        ok: false,
+        reason: 'FULLY_CHECKED_IN',
+        message: 'This party is already fully checked in.',
+        checkin: row,
+      };
+    }
+    if (additional > remaining) {
+      return {
+        ok: false,
+        reason: 'TOO_MANY',
+        message: `Only ${remaining} remaining for this party.`,
+        checkin: row,
+        remaining,
+      };
+    }
+
+    const updated = await client.query(
+      `UPDATE checkins
+       SET actual_party_size = actual_party_size + $1,
+           late_arrivals     = late_arrivals + $1,
+           last_updated_at   = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [additional, row.id]
+    );
+
+    await client.query(
+      `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, 'add_late_arrivals', 'checkin', $2, $3)`,
+      [
+        staffId,
+        row.id,
+        JSON.stringify({
+          added: additional,
+          previous_actual: row.actual_party_size,
+          new_actual: updated.rows[0].actual_party_size,
+          expected: row.expected_party_size,
+        }),
+      ]
+    );
+
+    return {
+      ok: true,
+      checkin: updated.rows[0],
+      invitation: {
+        id: row.invitation_id,
+        name: row.invitee_name,
+        expectedPartySize: row.expected_party_size,
+        actualPartySize: updated.rows[0].actual_party_size,
+        remaining: row.expected_party_size - updated.rows[0].actual_party_size,
+      },
+    };
+  });
+}
+
 async function getSummary() {
   const { rows } = await pool.query(`
     SELECT
@@ -92,19 +175,17 @@ async function getSummary() {
 
       (SELECT COUNT(*) FROM checkins) AS checked_in_parties,
 
-      -- Expected headcount across only the parties that actually showed up
       (SELECT COALESCE(SUM(expected_party_size),0) FROM checkins) AS expected_attending,
-
-      -- Actual people who arrived
-      (SELECT COALESCE(SUM(actual_party_size),0) FROM checkins) AS actual_attendees,
-
-      -- The "no-show inside a party" delta
+      (SELECT COALESCE(SUM(actual_party_size),0)   FROM checkins) AS actual_attendees,
       (SELECT COALESCE(SUM(expected_party_size - actual_party_size),0)
          FROM checkins) AS no_show_attendees,
+
+      -- NEW: total late arrivals across all check-ins
+      (SELECT COALESCE(SUM(late_arrivals),0) FROM checkins) AS late_arrivals,
 
       (SELECT COUNT(*) FROM email_logs WHERE delivery_status='failed') AS failed_emails
   `);
   return rows[0];
 }
 
-module.exports = { validateAndCheckin, getSummary };
+module.exports = { validateAndCheckin, addLateArrivals, getSummary };

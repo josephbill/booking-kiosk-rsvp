@@ -296,16 +296,44 @@ function renderLookupResult(info, token) {
   const titleParts = [nameLine, partyLine].filter(Boolean).join(' · ');
 
   switch (reason) {
-    case 'ALREADY_CHECKED_IN': {
-      const when = info.checkedInAt ? new Date(info.checkedInAt).toLocaleString() : 'unknown time';
-      const by = info.staffName ? escapeHtml(info.staffName) : 'unknown staff';
-      renderResult('warn', {
-        title: `<i class="bi bi-exclamation-circle me-1"></i> Already checked in`,
-        body: titleParts || 'This party has already been checked in.',
-        meta: `At ${escapeHtml(when)} by ${by}`,
-      });
-      break;
-    }
+case 'ALREADY_CHECKED_IN': {
+  const when = info.checkedInAt ? new Date(info.checkedInAt).toLocaleString() : 'unknown';
+  const by = info.staffName ? escapeHtml(info.staffName) : 'unknown staff';
+  const remaining = Number(info.remaining || 0);
+  const expected = Number(info.expectedPartySize || 0);
+  const actual = Number(info.actualPartySize || 0);
+
+  const bodyHtml = remaining > 0
+    ? `<div style="margin-top:.35rem">
+         Admitted: <strong>${actual}</strong> of <strong>${expected}</strong>.
+         <div style="font-size:.8rem;opacity:.75;margin-top:.15rem">
+           ${remaining} guest${remaining === 1 ? '' : 's'} not yet arrived.
+         </div>
+       </div>`
+    : `<div style="margin-top:.35rem">All <strong>${expected}</strong> guests already admitted.</div>`;
+
+  const actions = remaining > 0
+    ? [{
+        action: 'late',
+        className: 'btn-warning',
+        label: `<i class="bi bi-person-plus"></i> Add late arrival`,
+      }]
+    : [];
+
+  const el = renderResult('warn', {
+    title: `<i class="bi bi-exclamation-circle me-1"></i> Already checked in`,
+    body: `<div><strong>${escapeHtml(info.name || '')}</strong></div>${bodyHtml}`,
+    meta: `Original check-in ${escapeHtml(when)} by ${by}`,
+    actions,
+  });
+
+  if (remaining > 0) {
+    el.querySelector('[data-action="late"]').addEventListener('click', (e) => {
+      showLateArrivalForm(el, token, info, e.currentTarget);
+    });
+  }
+  break;
+}
     case 'REVOKED':
       renderResult('danger', {
         title: 'QR code revoked',
@@ -383,6 +411,92 @@ async function doCheckin(token, btn, actualPartySize) {
     renderResult('danger', {
       title: 'Check-in failed',
       body: escapeHtml(err.message || 'Network error.'),
+    });
+  }
+}
+
+function showLateArrivalForm(resultEl, token, info, originBtn) {
+  originBtn.disabled = true;
+  const remaining = Number(info.remaining || 0);
+
+  const form = document.createElement('div');
+  form.innerHTML = `
+    <div style="margin-top:.75rem;border-top:1px solid rgba(255,255,255,.15);padding-top:.75rem">
+      <div style="font-size:.85rem;opacity:.85;margin-bottom:.4rem">
+        How many late arrivals?
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <input type="number" min="1" max="${remaining}" value="1"
+               class="form-control form-control-sm" style="width:70px;text-align:center"
+               data-role="lateCount">
+        <span style="font-size:.8rem;opacity:.7">of ${remaining} remaining</span>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:.6rem">
+        <button class="btn btn-sm btn-success" data-action="late-confirm">
+          <i class="bi bi-check2"></i> Confirm
+        </button>
+        <button class="btn btn-sm btn-outline-light" data-action="late-cancel">
+          Cancel
+        </button>
+      </div>
+    </div>`;
+  resultEl.appendChild(form);
+
+  const input = form.querySelector('[data-role="lateCount"]');
+  form.querySelector('[data-action="late-cancel"]').addEventListener('click', () => {
+    form.remove();
+    originBtn.disabled = false;
+  });
+
+  form.querySelector('[data-action="late-confirm"]').addEventListener('click', async (e) => {
+    const n = parseInt(input.value, 10);
+    if (!Number.isInteger(n) || n < 1 || n > remaining) {
+      input.focus();
+      return;
+    }
+    await doLateArrival(token, e.currentTarget, n);
+  });
+}
+
+async function doLateArrival(token, btn, additionalCount) {
+  setButtonSpinner(btn, true, 'Updating…');
+  try {
+    const r = await fetchWithTimeout('/admin/scanner/api/late-arrival', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ qrToken: token, additionalCount }),
+    });
+
+    if (r.status === 401) {
+      setTimeout(() => { window.location.href = '/auth/login'; }, 800);
+      return;
+    }
+
+    const data = await r.json().catch(() => ({}));
+
+    if (data.ok) {
+      const now = data.invitation.actualPartySize;
+      const expected = data.invitation.expectedPartySize;
+      const delta = expected - now;
+      renderResult('success', {
+        title: `<i class="bi bi-check-circle-fill me-1"></i> Late arrival recorded: ${escapeHtml(data.invitation.name)}`,
+        body: delta === 0
+          ? `Party fully admitted — ${now} of ${expected}.`
+          : `${additionalCount} added. Now ${now} of ${expected}.`,
+        meta: `Updated ${new Date().toLocaleTimeString()}`,
+      });
+      return;
+    }
+
+    // Surface server-side reason (TOO_MANY, FULLY_CHECKED_IN, etc.)
+    renderResult('danger', {
+      title: 'Could not add late arrival',
+      body: escapeHtml(data.message || 'Please check the code and try again.'),
+    });
+  } catch (err) {
+    renderResult('danger', {
+      title: 'Network error',
+      body: escapeHtml(err.message || 'Could not reach the server.'),
     });
   }
 }

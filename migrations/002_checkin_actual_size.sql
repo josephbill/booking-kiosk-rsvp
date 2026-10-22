@@ -14,9 +14,20 @@ ALTER TABLE checkins
   ALTER COLUMN expected_party_size SET NOT NULL,
   ALTER COLUMN actual_party_size   SET NOT NULL;
 
-ALTER TABLE checkins
-  ADD CONSTRAINT checkins_actual_le_expected
-    CHECK (actual_party_size >= 1 AND actual_party_size <= expected_party_size);
+-- Add the size check constraint only if it doesn't already exist.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'checkins_actual_le_expected'
+      AND conrelid = 'checkins'::regclass
+  ) THEN
+    ALTER TABLE checkins
+      ADD CONSTRAINT checkins_actual_le_expected
+      CHECK (actual_party_size >= 1 AND actual_party_size <= expected_party_size);
+  END IF;
+END
+$$;
 
 -- Helpful index for dashboard aggregation
 CREATE INDEX IF NOT EXISTS idx_checkins_event_aggregate
