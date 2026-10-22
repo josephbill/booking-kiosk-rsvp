@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "migrate": "node src/db/migrate.js",
     "seed-admin": "node src/db/seedAdmin.js",
+    "update-event": "node src/db/updateEvent.js",
     "test": "node --test tests/",
     "check": "node --check server.js"
   },
