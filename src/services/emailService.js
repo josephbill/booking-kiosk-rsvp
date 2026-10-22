@@ -99,12 +99,10 @@
 const { sendMail } = require('../config/mailer');
 const { pool } = require('../config/db');
 const env = require('../config/env');
-const { renderQrPng } = require('./qrService');
+const { renderQrPng, uploadQrToCloudinary } = require('./qrService'); // Import the new function
 const logger = require('../utils/logger');
 
-// src/services/emailService.js
 async function logEmail(invitationId, type, status, error) {
-  // Silently skip if invitation was deleted mid-flight
   const exists = await pool.query('SELECT 1 FROM invitations WHERE id=$1', [invitationId]);
   if (exists.rowCount === 0) return;
 
@@ -150,11 +148,18 @@ async function sendInvitationEmail(invitation, event) {
 }
 
 async function sendConfirmationEmail(invitation, event, rawQrToken) {
-  // Render the QR as PNG buffer, then Base64-encode it for inline embedding.
-  // This is required because Brevo's HTTP API doesn't accept raw Nodemailer
-  // attachments with cid: references.
+  // 1. Generate QR Buffer
   const qrPng = await renderQrPng(rawQrToken);
-  const qrBase64 = qrPng.toString('base64');
+  
+  // 2. Upload to Cloudinary, get secure URL
+  let qrUrl;
+  try {
+    qrUrl = await uploadQrToCloudinary(qrPng, invitation.invitee_name);
+  } catch (err) {
+    logger.error('qr_upload_failed', { id: invitation.id, err: err.message });
+    // Even if upload fails, don't block email sending; use a fallback text prompt
+    qrUrl = null;
+  }
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px">
@@ -167,16 +172,21 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
         <li><strong>Venue:</strong> ${escapeHtml(event.venue)}</li>
       </ul>
       <p>Present this QR code at the entrance:</p>
-      <p><img src="data:image/png;base64,${qrBase64}" alt="Party QR" style="max-width:320px;width:100%;height:auto" /></p>
+      ${qrUrl 
+        ? `<p><img src="${qrUrl}" alt="Party QR" style="max-width:320px;width:100%;height:auto" /></p>
+           <p style="font-size:12px;color:#888">If the image doesn't display, <a href="${qrUrl}">click here to view</a>.</p>`
+        : `<p><strong>Your QR code could not be generated.</strong> Please contact the organizer.</p>`
+      }
       <p>Do not share this code.</p>
     </div>`;
   const text = `RSVP confirmed for ${event.name}. Party size: ${invitation.confirmed_party_size}. Show the QR code in this email at the entrance.`;
+
   try {
     await sendMail({
       to: invitation.invitee_email,
       subject: `RSVP Confirmed – ${event.name}`,
       html, text,
-      // No attachments — QR is embedded as data URI
+      // No attachments needed anymore
     });
     await logEmail(invitation.id, 'confirmation', 'sent');
   } catch (err) {
