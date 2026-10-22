@@ -3,8 +3,9 @@ const router = express.Router();
 const path = require('path');
 const { requireAuth } = require('../middleware/auth');
 const { scanLimiter } = require('../middleware/rateLimit');
-const { validateAndCheckin } = require('../services/checkinService');
+const { validateAndCheckin, addLateArrivals } = require('../services/checkinService');
 const { pool } = require('../config/db');
+const { hashToken } = require('../utils/tokens');
 
 router.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'views', 'scanner', 'index.html'));
