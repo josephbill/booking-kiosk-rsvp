@@ -117,7 +117,7 @@ async function sendInvitationEmail(invitation, event) {
   const rsvpUrl = `${env.APP_BASE_URL}/rsvp/${invitation.invitation_token}`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px">
-      <h2 style="color:#0d6efd">You're invited to ${escapeHtml(event.name)}</h2>
+      <h2 style="color:#6f42c1">You're invited to ${escapeHtml(event.name)}</h2>
       <p>Dear ${escapeHtml(invitation.invitee_name)},</p>
       <p>You are invited to join us. Details:</p>
       <ul>

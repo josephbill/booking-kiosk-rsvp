@@ -45,9 +45,9 @@ router.post('/api/lookup', requireAuth, scanLimiter, async (req, res, next) => {
 // Check in
 router.post('/api/checkin', requireAuth, scanLimiter, async (req, res, next) => {
   try {
-    const { qrToken } = req.body || {};
+    const { qrToken, actualPartySize } = req.body || {};
     if (!qrToken) return res.status(400).json({ error: 'qrToken required' });
-    const result = await validateAndCheckin(qrToken, req.user.id);
+    const result = await validateAndCheckin(qrToken, req.user.id, actualPartySize);
     res.json(result);
   } catch (e) { next(e); }
 });

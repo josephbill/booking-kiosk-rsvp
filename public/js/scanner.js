@@ -232,21 +232,59 @@ async function lookupToken(token) {
 }
 
 function renderLookupResult(info, token) {
-  // info shape:
-  //   { valid: true, name, partySize }
-  //   { valid: false, reason, name?, partySize?, checkedInAt?, staffName? }
   if (info.valid) {
+    const expected = info.partySize;
     const el = renderResult('success', {
-      title: `${escapeHtml(info.name)} <span class="party-badge">Party of ${info.partySize}</span>`,
-      body: 'Confirm to check in the entire party.',
+      title: `${escapeHtml(info.name)} <span class="party-badge">Expected ${expected}</span>`,
+      body: `
+        <div style="margin-top:.5rem">
+          <div style="font-size:.85rem;opacity:.8;margin-bottom:.4rem">
+            How many actually arrived?
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <button type="button" class="btn btn-outline-light btn-sm" data-step="-1"
+                    aria-label="Decrease">−</button>
+            <input type="number" min="1" max="${expected}" value="${expected}"
+                   class="form-control form-control-sm" style="width:70px;text-align:center"
+                   data-role="actualSize">
+            <button type="button" class="btn btn-outline-light btn-sm" data-step="1"
+                    aria-label="Increase">+</button>
+            <span style="font-size:.8rem;opacity:.7">of ${expected}</span>
+          </div>
+        </div>`,
       actions: [{
         action: 'checkin',
         className: 'btn-success',
-        label: '<i class="bi bi-check2-circle"></i> Check In Party',
+        label: '<i class="bi bi-check2-circle"></i> Confirm check-in',
       }],
     });
+
+    const input = el.querySelector('[data-role="actualSize"]');
+    el.querySelectorAll('[data-step]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const step = parseInt(btn.dataset.step, 10);
+        const next = Math.min(expected, Math.max(1, (parseInt(input.value, 10) || expected) + step));
+        input.value = next;
+      });
+    });
+    input.addEventListener('input', () => {
+      // Clamp in real-time
+      const n = parseInt(input.value, 10);
+      if (!Number.isInteger(n)) return;
+      if (n < 1) input.value = 1;
+      else if (n > expected) input.value = expected;
+    });
+
     el.querySelector('[data-action="checkin"]').addEventListener('click', (e) => {
-      doCheckin(token, e.currentTarget);
+      const size = parseInt(input.value, 10);
+      if (!Number.isInteger(size) || size < 1 || size > expected) {
+        renderResult('danger', {
+          title: 'Invalid party size',
+          body: `Enter a number between 1 and ${expected}.`,
+        });
+        return;
+      }
+      doCheckin(token, e.currentTarget, size);
     });
     return;
   }
@@ -298,16 +336,15 @@ function renderLookupResult(info, token) {
   }
 }
 
-async function doCheckin(token, btn) {
+async function doCheckin(token, btn, actualPartySize) {
   setButtonSpinner(btn, true, 'Checking in…');
-  // Disable other action buttons too
   els.result.querySelectorAll('button[data-action]').forEach(b => { b.disabled = true; });
 
   try {
     const r = await fetchWithTimeout('/admin/scanner/api/checkin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ qrToken: token }),
+      body: JSON.stringify({ qrToken: token, actualPartySize }),
     });
 
     if (r.status === 401) {
@@ -321,20 +358,24 @@ async function doCheckin(token, btn) {
       const when = data.checkin?.checked_in_at
         ? new Date(data.checkin.checked_in_at).toLocaleString()
         : 'just now';
+      const admitted = data.invitation.actualPartySize;
+      const expected = data.invitation.expectedPartySize;
+      const delta = expected - admitted;
       renderResult('success', {
         title: `<i class="bi bi-check-circle-fill me-1"></i> Checked in: ${escapeHtml(data.invitation.name)}`,
-        body: `Party of ${data.invitation.partySize} admitted.`,
+        body: delta === 0
+          ? `Party of ${admitted} admitted.`
+          : `Party of ${admitted} admitted (expected ${expected}).`,
         meta: `Recorded ${escapeHtml(when)}`,
       });
       return;
     }
 
-    // Server said not ok — reuse reason messaging
     renderLookupResult({
       valid: false,
       reason: data.reason || 'INVALID',
       name: data.invitation?.name,
-      partySize: data.invitation?.partySize,
+      partySize: data.invitation?.expectedPartySize || data.invitation?.partySize,
       checkedInAt: data.existing?.checked_in_at,
       staffName: data.existing?.staff_name,
     }, token);

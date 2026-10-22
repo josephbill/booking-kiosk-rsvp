@@ -40,14 +40,20 @@ router.get('/confirmed', requireAuth, async (req, res, next) => {
 router.get('/checkins', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT i.invitee_name, i.invitee_email, c.party_size, c.checked_in_at, u.name AS staff_name
+      `SELECT i.invitee_name, i.invitee_email,
+              c.expected_party_size, c.actual_party_size,
+              (c.expected_party_size - c.actual_party_size) AS no_shows,
+              c.checked_in_at, u.name AS staff_name
        FROM checkins c
-       JOIN invitations i ON i.id=c.invitation_id
-       LEFT JOIN users u ON u.id=c.staff_id
+       JOIN invitations i ON i.id = c.invitation_id
+       LEFT JOIN users u ON u.id = c.staff_id
        ORDER BY c.checked_in_at`
     );
     const csv = toCsv(
-      ['invitee_name','invitee_email','party_size','checked_in_at','staff_name'], rows);
+      ['invitee_name','invitee_email','expected_party_size','actual_party_size',
+       'no_shows','checked_in_at','staff_name'],
+      rows
+    );
     sendCsv(res, 'checkins.csv', csv);
   } catch (e) { next(e); }
 });
@@ -73,9 +79,13 @@ router.get('/summary', requireAuth, async (req, res, next) => {
         (SELECT COUNT(*) FROM invitations WHERE rsvp_status='accepted') AS total_accepted,
         (SELECT COUNT(*) FROM invitations WHERE rsvp_status='declined') AS total_declined,
         (SELECT COUNT(*) FROM invitations WHERE rsvp_status='pending') AS total_pending,
-        (SELECT COALESCE(SUM(confirmed_party_size),0) FROM invitations WHERE rsvp_status='accepted') AS expected_attendees,
+        (SELECT COALESCE(SUM(confirmed_party_size),0)
+           FROM invitations WHERE rsvp_status='accepted') AS expected_attendees,
         (SELECT COUNT(*) FROM checkins) AS checked_in_parties,
-        (SELECT COALESCE(SUM(party_size),0) FROM checkins) AS actual_attendees
+        (SELECT COALESCE(SUM(expected_party_size),0) FROM checkins) AS expected_attending,
+        (SELECT COALESCE(SUM(actual_party_size),0)   FROM checkins) AS actual_attendees,
+        (SELECT COALESCE(SUM(expected_party_size - actual_party_size),0)
+           FROM checkins) AS no_show_attendees
     `);
     const r = rows[0];
     const csv = toCsv(
