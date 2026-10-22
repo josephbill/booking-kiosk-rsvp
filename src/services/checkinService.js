@@ -41,13 +41,19 @@ async function validateAndCheckin(rawToken, staffId, actualPartySize) {
 
     try {
       const ins = await client.query(
-        `INSERT INTO checkins
-           (invitation_id, party_size, expected_party_size, actual_party_size,
-            staff_id, qr_credential_id)
-         VALUES ($1, $2, $2, $3, $4, $5)
-         RETURNING *`,
-        [qc.inv_id, expected, actual, staffId, qc.id]
-      );
+  `INSERT INTO checkins
+     (invitation_id,
+      party_size,
+      expected_party_size,
+      actual_party_size,
+      initial_actual_party_size,
+      late_arrivals,
+      staff_id,
+      qr_credential_id)
+   VALUES ($1, $2, $2, $3, $3, 0, $4, $5)
+   RETURNING *`,
+  [qc.inv_id, expected, actual, staffId, qc.id]
+);
       return {
         ok: true,
         checkin: ins.rows[0],
@@ -123,15 +129,15 @@ async function addLateArrivals(rawToken, staffId, additionalCount) {
       };
     }
 
-    const updated = await client.query(
-      `UPDATE checkins
-       SET actual_party_size = actual_party_size + $1,
-           late_arrivals     = late_arrivals + $1,
-           last_updated_at   = NOW()
-       WHERE id = $2
-       RETURNING *`,
-      [additional, row.id]
-    );
+   const updated = await client.query(
+  `UPDATE checkins
+   SET actual_party_size = actual_party_size + $1,
+       late_arrivals     = late_arrivals + $1,
+       last_updated_at   = NOW()
+   WHERE id = $2
+   RETURNING *`,
+  [additional, row.id]
+);
 
     await client.query(
       `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata)
