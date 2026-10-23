@@ -184,4 +184,28 @@ router.delete('/api/invitations/:id', requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Get all communities
+router.get('/api/communities', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name FROM communities ORDER BY name ASC');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// Create a new community
+router.post('/api/communities', requireAuth, async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || name.trim() === '') return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'INSERT INTO communities (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id, name',
+      [name.trim()]
+    );
+    if (rows.length === 0) return res.status(409).json({ error: 'Community already exists' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+
+
 module.exports = router;

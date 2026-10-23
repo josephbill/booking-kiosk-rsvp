@@ -112,12 +112,12 @@ async function reopenInvitation(invitationId, actorId) {
   });
 }
 
-async function createInvitation({ eventId, name, email, maxPartySize }) {
+async function createInvitation({ eventId, name, email, maxPartySize, communityId }) {
   const token = randomToken(32);
   const { rows } = await pool.query(
-    `INSERT INTO invitations (event_id, invitee_name, invitee_email, invitation_token, max_party_size)
-     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [eventId, name, email, token, maxPartySize]
+    `INSERT INTO invitations (event_id, invitee_name, invitee_email, invitation_token, max_party_size, community_id)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [eventId, name, email, token, maxPartySize, communityId || null]
   );
   return rows[0];
 }

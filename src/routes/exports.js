@@ -13,12 +13,14 @@ function sendCsv(res, filename, csv) {
 router.get('/register', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT invitee_name, invitee_email, rsvp_status, confirmed_party_size,
-              response_at, created_at
-       FROM invitations ORDER BY invitee_name`
+      `SELECT i.invitee_name, i.invitee_email, c.name AS community, 
+              i.rsvp_status, i.confirmed_party_size, i.response_at, i.created_at
+       FROM invitations i
+       LEFT JOIN communities c ON c.id = i.community_id
+       ORDER BY i.invitee_name`
     );
     const csv = toCsv(
-      ['invitee_name','invitee_email','rsvp_status','confirmed_party_size','response_at','created_at'],
+      ['invitee_name','invitee_email','community','rsvp_status','confirmed_party_size','response_at','created_at'],
       rows
     );
     sendCsv(res, 'invitation-register.csv', csv);
@@ -40,20 +42,20 @@ router.get('/confirmed', requireAuth, async (req, res, next) => {
 router.get('/checkins', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT i.invitee_name, i.invitee_email,
-              c.expected_party_size,
-              c.initial_actual_party_size,
-              c.late_arrivals,
-              c.actual_party_size,
+      `SELECT i.invitee_name, i.invitee_email, com.name AS community,
+              c.expected_party_size, c.initial_actual_party_size,
+              c.late_arrivals, c.actual_party_size,
               (c.expected_party_size - c.actual_party_size) AS no_shows,
               c.checked_in_at, c.last_updated_at, u.name AS staff_name
        FROM checkins c
        JOIN invitations i ON i.id = c.invitation_id
+       LEFT JOIN communities com ON com.id = i.community_id
        LEFT JOIN users u ON u.id = c.staff_id
        ORDER BY c.checked_in_at`
     );
+    // Update headers array to include 'community'
     const csv = toCsv(
-      ['invitee_name','invitee_email','expected_party_size',
+      ['invitee_name','invitee_email','community','expected_party_size',
        'initial_actual_party_size','late_arrivals','actual_party_size',
        'no_shows','checked_in_at','last_updated_at','staff_name'],
       rows
