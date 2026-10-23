@@ -152,11 +152,11 @@ async function sendInvitationEmail(invitation, event) {
                   <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/hck-logo.jpeg" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/hck-logo.jpeg" alt="Hindu Council of Kenya" width="100" style="display: block; max-width: 100px;">
                       </td>
                       <td width="10%" align="center" style="color: #800000; font-size: 24px; font-weight: bold;">|</td>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/oshwal-logo.jpeg" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/oshwal-logo.jpeg" alt="Visa Oshwal Community" width="100" style="display: block; max-width: 100px;">
                       </td>
                     </tr>
                   </table>
@@ -243,6 +243,7 @@ async function sendInvitationEmail(invitation, event) {
                     <a href="${rsvpUrl}" style="background-color: #800000; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 4px; display: inline-block; border: 1px solid #D4AF37;">
                       RSVP NOW
                     </a>
+                    <p>or click this link to RSVP : ${rsvpUrl} </p> 
                   </div>
                 </td>
               </tr>
@@ -318,11 +319,11 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
                   <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/hck-logo.png" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/hck-logo.jpeg" alt="Hindu Council of Kenya" width="100" style="display: block; max-width: 100px;">
                       </td>
                       <td width="10%" align="center" style="color: #800000; font-size: 24px;">|</td>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/oshwal-logo.png" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/oshwal-logo.jpeg" alt="Visa Oshwal Community" width="100" style="display: block; max-width: 100px;">
                       </td>
                     </tr>
                   </table>
@@ -341,7 +342,7 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
               <!-- Confirmation Details -->
               <tr>
                 <td align="center" style="padding: 10px 30px;">
-                  <p style="color: #333; font-size: 16px;">Thank you, <strong>${escapeHtml(invitation.invitee_name)}</strong>.</p>
+                  <p style="color: #333; font-size: 16px;">Thank you, <strong>Mr & Mrs. ${escapeHtml(invitation.invitee_name)}</strong>.</p>
                   <p style="color: #333; font-size: 16px;">We are delighted to confirm your attendance for a party of <strong>${invitation.confirmed_party_size}</strong>.</p>
                   
                   <div style="margin: 25px 0; padding: 15px; border-top: 1px solid #D4AF37; border-bottom: 1px solid #D4AF37;">
