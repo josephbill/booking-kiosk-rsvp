@@ -117,6 +117,20 @@ async function sendInvitationEmail(invitation, event) {
   const rsvpUrl = `${env.APP_BASE_URL}/rsvp/${invitation.invitation_token}`;
   const baseUrl = env.APP_BASE_URL;
   
+  // Format the date to match the design (e.g., SUNDAY, 1ST NOVEMBER 2026)
+  // We use 'en-GB' to get the day before the month, and append 'ST'/'ND'/'RD'/'TH' manually
+  // because JS doesn't have a built-in ordinal formatter.
+  const eventDate = new Date(event.event_date);
+  const day = eventDate.getDate();
+  const suffix = (day % 10 === 1 && day !== 11) ? 'ST' :
+                 (day % 10 === 2 && day !== 12) ? 'ND' :
+                 (day % 10 === 3 && day !== 13) ? 'RD' : 'TH';
+  const monthYear = eventDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase();
+  const weekday = eventDate.toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase();
+  const formattedDate = `${weekday}, ${day}${suffix} ${monthYear}`;
+
+  // We use a background image for the card, but since email clients are finicky with background images,
+  // we wrap it in a VML (Vector Markup Language) for Outlook, and standard CSS for everyone else.
   const html = `
     <!DOCTYPE html>
     <html>
@@ -128,74 +142,119 @@ async function sendInvitationEmail(invitation, event) {
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 20px;">
         <tr>
           <td align="center">
-            <!-- Main Card -->
+            
+            <!-- Main Invitation Card -->
             <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #FDF5E6; border: 2px solid #800000; border-radius: 8px; overflow: hidden;">
+              
               <!-- Header Logos -->
               <tr>
-                <td align="center" style="padding: 30px 20px 10px 20px;">
+                <td align="center" style="padding: 30px 20px 10px 20px; background-color: #FDF5E6;">
                   <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/hck-logo.jpeg" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/hck-logo.png" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
                       </td>
-                      <td width="10%" align="center" style="color: #800000; font-size: 24px;">|</td>
+                      <td width="10%" align="center" style="color: #800000; font-size: 24px; font-weight: bold;">|</td>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/oshwal-logo.jpeg" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/oshwal-logo.png" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
                       </td>
                     </tr>
                   </table>
                 </td>
               </tr>
               
-              <!-- Event Title -->
+              <!-- Main Titles -->
               <tr>
-                <td align="center" style="padding: 0 20px;">
-                  <h1 style="color: #800000; font-size: 22px; margin: 10px 0; letter-spacing: 1px;">HINDU COUNCIL OF KENYA</h1>
-                  <div style="width: 50%; border-top: 1px solid #D4AF37; margin: 10px auto;"></div>
-                  <p style="color: #333; font-size: 16px; font-style: italic; margin: 15px 0;">cordially invites</p>
-                  <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 5px 0;">${escapeHtml(invitation.invitee_name)}</p>
+                <td align="center" style="padding: 0 20px; background-color: #FDF5E6;">
+                  <h1 style="color: #800000; font-size: 22px; margin: 10px 0 5px 0; letter-spacing: 1px; font-weight: bold;">HINDU COUNCIL OF KENYA</h1>
+                  <div style="width: 60%; border-top: 1px solid #D4AF37; margin: 10px auto;"></div>
+                  
+                  <p style="color: #333; font-size: 18px; font-style: italic; margin: 15px 0;">cordially invites</p>
+                  
+                  <!-- INVITEE NAME -->
+                  <h2 style="color: #800000; font-size: 24px; margin: 5px 0; font-weight: bold; font-style: italic; border-bottom: 1px solid #800000; display: inline-block; padding-bottom: 2px;">
+                    ${escapeHtml(invitation.invitee_name)}
+                  </h2>
+                  
                   <p style="color: #333; font-size: 16px; font-style: italic; margin: 15px 0;">to celebrate</p>
-                  <h2 style="color: #800000; font-size: 32px; margin: 10px 0; font-weight: bold; text-transform: uppercase;">${escapeHtml(event.name)}</h2>
+                  
+                  <!-- EVENT NAME -->
+                  <h1 style="color: #800000; font-size: 36px; margin: 10px 0; font-weight: bold; text-transform: uppercase; line-height: 1.1;">
+                    ${escapeHtml(event.name)}
+                  </h1>
                 </td>
               </tr>
 
-              <!-- Program Details -->
+              <!-- Slogan / Theme Badge -->
               <tr>
-                <td align="center" style="padding: 20px 30px;">
-                  <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 0 0 10px 0;">📅 ${new Date(event.event_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                  <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 0;">📍 ${escapeHtml(event.venue)}</p>
-                  
-                  <div style="margin: 25px 0; padding: 15px; border-top: 1px solid #D4AF37; border-bottom: 1px solid #D4AF37;">
-                    <h3 style="color: #800000; font-size: 16px; margin: 0 0 10px 0;">PROGRAMME</h3>
-                    <p style="color: #333; font-size: 14px; margin: 5px 0;">10:00 AM – 10:45 AM | Arrival of Guests & Meet</p>
-                    <p style="color: #333; font-size: 14px; margin: 5px 0;">11:00 AM onwards | Diwali Luncheon & Celebrations</p>
+                <td align="center" style="padding: 10px 20px; background-color: #FDF5E6;">
+                  <div style="background-color: #800000; color: #D4AF37; padding: 10px 20px; border-radius: 4px; display: inline-block; font-size: 14px; font-weight: bold; letter-spacing: 2px;">
+                    SEWA • SAMARPAN • EKTA
+                  </div>
+                  <p style="color: #800000; font-size: 14px; font-style: italic; margin: 10px 0 20px 0;">Service • Dedication • Unity</p>
+                </td>
+              </tr>
+
+              <!-- Date & Venue -->
+              <tr>
+                <td align="center" style="padding: 0 20px; background-color: #FDF5E6;">
+                  <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 10px 0;">
+                    📅 ${formattedDate}
+                  </p>
+                  <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 10px 0 20px 0;">
+                    📍 ${escapeHtml(event.venue).toUpperCase()}
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Programme Section -->
+              <tr>
+                <td align="center" style="padding: 0 40px; background-color: #FDF5E6;">
+                  <div style="border-top: 1px solid #D4AF37; border-bottom: 1px solid #D4AF37; padding: 15px 0; margin-bottom: 20px;">
+                    <h3 style="color: #800000; font-size: 16px; margin: 0 0 10px 0; text-transform: uppercase;">PROGRAMME</h3>
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td align="left" style="color: #333; font-size: 14px; padding: 5px 0;">10:00 AM – 10:45 AM</td>
+                        <td align="right" style="color: #333; font-size: 14px; padding: 5px 0;">Arrival of Guests • Meet & Greet</td>
+                      </tr>
+                      <tr>
+                        <td align="left" style="color: #333; font-size: 14px; padding: 5px 0;">11:00 AM onwards</td>
+                        <td align="right" style="color: #333; font-size: 14px; padding: 5px 0;">Diwali Luncheon & Celebrations</td>
+                      </tr>
+                    </table>
                   </div>
 
-                  <p style="color: #333; font-size: 15px; font-style: italic; margin: 20px 0;">
+                  <p style="color: #333; font-size: 15px; font-style: italic; margin: 20px 0; line-height: 1.5;">
                     Your gracious presence will honour this occasion as we come together in the spirit of service, dedication and unity.
                   </p>
                 </td>
               </tr>
 
-              <!-- RSVP Button -->
+              <!-- RSVP Box -->
               <tr>
-                <td align="center" style="padding: 0 30px 40px 30px;">
-                  <p style="color: #800000; font-size: 14px; font-weight: bold; margin-bottom: 15px;">
-                    KINDLY RSVP BY THURSDAY, 29TH OCTOBER 2026
-                  </p>
-                  <a href="${rsvpUrl}" style="background-color: #800000; color: #ffffff; padding: 15px 30px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 4px; display: inline-block;">
-                    RSVP NOW
-                  </a>
-                  <p style="color: #666; font-size: 12px; margin-top: 15px;">
-                    If the button doesn't work, <a href="${rsvpUrl}" style="color: #800000;">click here</a>.
-                  </p>
+                <td align="center" style="padding: 0 30px 30px 30px; background-color: #FDF5E6;">
+                  <div style="border: 1px solid #D4AF37; padding: 20px; border-radius: 8px; background-color: #fffcf5;">
+                    <p style="color: #800000; font-size: 14px; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase;">
+                      KINDLY RSVP BY THURSDAY, 29TH OCTOBER 2026, BY 5:00 PM
+                    </p>
+                    <p style="color: #333; font-size: 13px; font-style: italic; margin: 0 0 15px 0;">
+                      Please confirm your attendance using the RSVP link below
+                    </p>
+                    <a href="${rsvpUrl}" style="background-color: #800000; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 4px; display: inline-block; border: 1px solid #D4AF37;">
+                      RSVP NOW
+                    </a>
+                  </div>
                 </td>
               </tr>
 
               <!-- Footer -->
               <tr>
-                <td align="center" style="background-color: #800000; padding: 15px;">
-                  <p style="color: #FDF5E6; font-size: 12px; margin: 0;">Wishing you a Happy & Prosperous Diwali!</p>
+                <td align="center" style="background-color: #800000; padding: 20px;">
+                  <p style="color: #FDF5E6; font-size: 14px; margin: 0 0 5px 0;">With warm regards,</p>
+                  <p style="color: #FDF5E6; font-size: 16px; font-weight: bold; margin: 0 0 15px 0;">Hindu Council of Kenya</p>
+                  <p style="color: #D4AF37; font-size: 14px; font-style: italic; margin: 0;">
+                    Wishing you a Happy & Prosperous Diwali!
+                  </p>
                 </td>
               </tr>
             </table>
@@ -205,8 +264,9 @@ async function sendInvitationEmail(invitation, event) {
     </body>
     </html>
   `;
+
+  const text = `You are invited to ${event.name}. Date: ${formattedDate}. Venue: ${event.venue}. RSVP: ${rsvpUrl}`;
   
-  const text = `You are invited to ${event.name}. Date: ${event.event_date}. Venue: ${event.venue}. RSVP: ${rsvpUrl}`;
   try {
     await sendMail({
       to: invitation.invitee_email,
