@@ -152,11 +152,11 @@ async function sendInvitationEmail(invitation, event) {
                   <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/hck-logo.png" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/hck-logo.jpeg" alt="Hindu Council of Kenya" width="80" style="display: block; max-width: 80px;">
                       </td>
                       <td width="10%" align="center" style="color: #800000; font-size: 24px; font-weight: bold;">|</td>
                       <td width="45%" align="center">
-                        <img src="${baseUrl}/images/oshwal-logo.png" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
+                        <img src="${baseUrl}/images/oshwal-logo.jpeg" alt="Visa Oshwal Community" width="80" style="display: block; max-width: 80px;">
                       </td>
                     </tr>
                   </table>
@@ -173,7 +173,7 @@ async function sendInvitationEmail(invitation, event) {
                   
                   <!-- INVITEE NAME -->
                   <h2 style="color: #800000; font-size: 24px; margin: 5px 0; font-weight: bold; font-style: italic; border-bottom: 1px solid #800000; display: inline-block; padding-bottom: 2px;">
-                    ${escapeHtml(invitation.invitee_name)}
+                    Mr & Mrs. ${escapeHtml(invitation.invitee_name)}
                   </h2>
                   
                   <p style="color: #333; font-size: 16px; font-style: italic; margin: 15px 0;">to celebrate</p>
