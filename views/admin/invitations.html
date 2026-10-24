@@ -652,12 +652,12 @@ document.getElementById('clearSearch').addEventListener('click', () => {
 document.getElementById('reloadBtn').addEventListener('click', () => loadList());
 document.getElementById('retryBtn').addEventListener('click', () => loadList());
 
-document.getElementById('logoutLink').addEventListener('click', async (e) => {
-  e.preventDefault();
-  showOverlay('Signing out…');
-  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
-  window.location.href = '/auth/login';
-});
+//document.getElementById('logoutLink').addEventListener('click', async (e) => {
+//  e.preventDefault();
+//  showOverlay('Signing out…');
+//  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+//  window.location.href = '/auth/login';
+// });
 
 /* ---------- Init ---------- */
 loadList();
