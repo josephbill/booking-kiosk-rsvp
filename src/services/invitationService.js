@@ -35,7 +35,6 @@ async function respondAccept(token, partySize) {
   }
 
   return withTransaction(async (client) => {
-    // Lock the row to prevent duplicate acceptances
     const { rows } = await client.query(
       `SELECT * FROM invitations WHERE invitation_token=$1 FOR UPDATE`,
       [token]
@@ -52,7 +51,6 @@ async function respondAccept(token, partySize) {
       [size, current.id]
     );
     const qr = await issueQrForInvitation(client, current.id);
-    // Fire email outside transaction — but record failure if it happens
     setImmediate(() => {
       sendConfirmationEmail({ ...updated.rows[0] }, {
         name: inv.event_name, event_date: inv.event_date, venue: inv.venue,
@@ -79,7 +77,6 @@ async function respondDecline(token) {
        WHERE id=$1 RETURNING *`,
       [inv.id]
     );
-    // Revoke any active QR just in case
     await client.query(
       `UPDATE qr_credentials SET credential_status='revoked', revoked_at=NOW()
        WHERE invitation_id=$1 AND credential_status='active'`,
