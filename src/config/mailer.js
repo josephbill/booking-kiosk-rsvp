@@ -33,14 +33,20 @@
 // brevo mailer on free tier 
 // src/config/mailer.js
 // src/config/mailer.js
+// src/config/mailer.js
 const env = require('./env');
 
-async function sendMail({ to, subject, html, text }) {
+async function sendMail({ to, cc, subject, html, text }) {
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
     console.log(`[mailer] (no BREVO_API_KEY) to=${to} subject=${subject}`);
     return { messageId: 'logged-only' };
   }
+
+  // Build CC array if provided
+  const ccList = cc
+    ? (Array.isArray(cc) ? cc : [cc]).map(email => ({ email }))
+    : undefined;
 
   const payload = {
     sender: {
@@ -48,6 +54,7 @@ async function sendMail({ to, subject, html, text }) {
       name: env.SMTP.FROM_NAME || 'Events',
     },
     to: [{ email: to }],
+    ...(ccList && { cc: ccList }),   // Only include 'cc' if present
     subject,
     htmlContent: html,
     textContent: text,
