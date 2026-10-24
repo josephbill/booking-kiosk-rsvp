@@ -593,112 +593,130 @@ createForm.addEventListener('submit', async (e) => {
 });
 
 /* ---------- CSV Import (Chunked for large lists) ---------- */
+/* ---------- CSV Import (File Upload + Chunked) ---------- */
 const importBtn = document.getElementById('importBtn');
 const importResult = document.getElementById('importResult');
-const importHint = document.getElementById('importHint');
 const importProgress = document.getElementById('importProgress');
+const csvFileInput = document.getElementById('csvFile');
+
+// Template download logic
+document.getElementById('downloadTemplate').addEventListener('click', (e) => {
+  e.preventDefault();
+  const csvContent = "name,email,maxPartySize,community\nJane Doe,jane@example.com,4,Nairobi\nJohn Smith,john@example.com,2,Mombasa";
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "invitations_template.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+});
 
 importBtn.addEventListener('click', async () => {
   importResult.innerHTML = '';
-  importHint.textContent = '';
   importProgress.style.display = 'none';
-  const text = document.getElementById('csvInput').value.trim();
-  const lines = text.split(/\r?\n/).filter(Boolean);
   
-  if (lines.length < 2) { 
-    importHint.textContent = 'Include a header row + at least one data row.'; 
-    return; 
-  }
-  
-  const header = lines[0].split(',').map(s => s.trim());
-  if (!header.includes('name') || !header.includes('email')) {
-    importHint.textContent = 'Header must include "name" and "email".';
+  const file = csvFileInput.files[0];
+  if (!file) {
+    importResult.innerHTML = `<div class="alert alert-warning">Please select a CSV file first.</div>`;
     return;
   }
-  
-  const allRows = lines.slice(1).map(l => {
-    const vals = l.split(',');
-    const obj = {};
-    header.forEach((h, i) => obj[h] = (vals[i] || '').trim());
-    return { 
-      name: obj.name, 
-      email: obj.email, 
-      maxPartySize: obj.maxPartySize,
-      community: obj.community 
-    };
-  });
 
-  // Chunk the list into batches of 50
-  const CHUNK_SIZE = 50;
-  const chunks = [];
-  for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
-    chunks.push(allRows.slice(i, i + CHUNK_SIZE));
-  }
+  // Use PapaParse to handle commas inside quotes correctly
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: h => h.trim().toLowerCase(),
+    complete: async function(results) {
+      if (results.errors.length > 0 && results.data.length === 0) {
+        importResult.innerHTML = `<div class="alert alert-danger">Error parsing CSV. Check file format.</div>`;
+        return;
+      }
 
-  let totalCreated = 0;
-  let totalFailed = 0;
-  let totalEmailsQueued = 0;
-  let totalEmailsFailed = 0;
-  let allErrors = [];
+      const allRows = results.data.map(row => ({
+        name: row.name || '',
+        email: row.email || '',
+        maxPartySize: row.maxpartysize || row.max_party_size || row.max_party_size || '', // handle slight header variations
+        community: row.community || ''
+      }));
 
-  await withButtonSpinner(importBtn, async () => {
-    importProgress.style.display = 'block';
-    const progressBar = importProgress.querySelector('.progress-bar');
-    
-    for (let i = 0; i < chunks.length; i++) {
-      // Update UI
-      const pct = Math.round(((i) / chunks.length) * 100);
-      progressBar.style.width = `${pct}%`;
-      importBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Batch ${i + 1}/${chunks.length}...`;
-      
-      try {
-        const r = await fetch('/admin/api/invitations/import', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: chunks[i] }),
-        });
+      if (allRows.length === 0) {
+        importResult.innerHTML = `<div class="alert alert-warning">No data rows found in the CSV.</div>`;
+        return;
+      }
+
+      // Chunk the list into batches of 50
+      const CHUNK_SIZE = 50;
+      const chunks = [];
+      for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
+        chunks.push(allRows.slice(i, i + CHUNK_SIZE));
+      }
+
+      let totalCreated = 0;
+      let totalFailed = 0;
+      let totalEmailsQueued = 0;
+      let totalEmailsFailed = 0;
+      let allErrors = [];
+
+      await withButtonSpinner(importBtn, async () => {
+        importProgress.style.display = 'block';
+        const progressBar = importProgress.querySelector('.progress-bar');
         
-        const data = await r.json().catch(() => ({}));
-        
-        if (r.ok) {
-          totalCreated += data.created || 0;
-          totalFailed += data.failed || 0;
-          totalEmailsQueued += data.emailsQueued || 0;
-          totalEmailsFailed += data.emailsFailed || 0;
-          if (data.errors) allErrors = allErrors.concat(data.errors);
-        } else {
-          totalFailed += chunks[i].length;
-          allErrors.push({ row: { email: `Batch ${i+1}` }, error: data.error || 'Batch failed' });
+        for (let i = 0; i < chunks.length; i++) {
+          const pct = Math.round(((i) / chunks.length) * 100);
+          progressBar.style.width = `${pct}%`;
+          importBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Batch ${i + 1}/${chunks.length}...`;
+          
+          try {
+            const r = await fetch('/admin/api/invitations/import', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows: chunks[i] }),
+            });
+            
+            const data = await r.json().catch(() => ({}));
+            
+            if (r.ok) {
+              totalCreated += data.created || 0;
+              totalFailed += data.failed || 0;
+              totalEmailsQueued += data.emailsQueued || 0;
+              totalEmailsFailed += data.emailsFailed || 0;
+              if (data.errors) allErrors = allErrors.concat(data.errors);
+            } else {
+              totalFailed += chunks[i].length;
+              allErrors.push({ row: { email: `Batch ${i+1}` }, error: data.error || 'Batch failed' });
+            }
+          } catch (err) {
+            totalFailed += chunks[i].length;
+            allErrors.push({ row: { email: `Batch ${i+1}` }, error: err.message });
+          }
         }
-      } catch (err) {
-        totalFailed += chunks[i].length;
-        allErrors.push({ row: { email: `Batch ${i+1}` }, error: err.message });
-      }
-    }
 
-    // Final UI Update
-    progressBar.style.width = '100%';
-    setTimeout(() => { importProgress.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
+        progressBar.style.width = '100%';
+        setTimeout(() => { importProgress.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
 
-    const cls = (totalFailed > 0 || totalEmailsFailed > 0) ? 'warning' : 'success';
-    let html = `<div class="alert alert-${cls}">
-      <strong>Created:</strong> ${totalCreated} &nbsp;
-      <strong>Failed:</strong> ${totalFailed} &nbsp;
-      <strong>Emails queued:</strong> ${totalEmailsQueued} &nbsp;
-      <strong>Email failures:</strong> ${totalEmailsFailed}
-    </div>`;
-    
-    if (allErrors.length > 0) {
-      html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
-      for (const err of allErrors) {
-        const row = err.row || {};
-        html += `<li><code>${esc(row.email || '(no email)')}</code> — ${esc(err.error)}</li>`;
-      }
-      html += `</ul></div>`;
+        const cls = (totalFailed > 0 || totalEmailsFailed > 0) ? 'warning' : 'success';
+        let html = `<div class="alert alert-${cls}">
+          <strong>Created:</strong> ${totalCreated} &nbsp;
+          <strong>Failed:</strong> ${totalFailed} &nbsp;
+          <strong>Emails queued:</strong> ${totalEmailsQueued} &nbsp;
+          <strong>Email failures:</strong> ${totalEmailsFailed}
+        </div>`;
+        
+        if (allErrors.length > 0) {
+          html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
+          for (const err of allErrors) {
+            const row = err.row || {};
+            html += `<li><code>${esc(row.email || '(no email)')}</code> — ${esc(err.error)}</li>`;
+          }
+          html += `</ul></div>`;
+        }
+        
+        importResult.innerHTML = html;
+        if (totalCreated > 0) await loadList({ silent: true });
+      }, 'Importing…');
     }
-    
-    importResult.innerHTML = html;
-    if (totalCreated > 0) await loadList({ silent: true });
-  }, 'Importing…');
+  });
 });
 
 /* ---------- Filters, reload, logout ---------- */
