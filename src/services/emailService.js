@@ -173,7 +173,7 @@ async function sendInvitationEmail(invitation, event) {
                   
                   <!-- INVITEE NAME -->
                   <h2 style="color: #800000; font-size: 24px; margin: 5px 0; font-weight: bold; font-style: italic; border-bottom: 1px solid #800000; display: inline-block; padding-bottom: 2px;">
-                    Mr & Mrs. ${escapeHtml(invitation.invitee_name)}
+                    ${escapeHtml(invitation.invitee_name)}
                   </h2>
                   
                   <p style="color: #333; font-size: 16px; font-style: italic; margin: 15px 0;">to celebrate</p>
@@ -342,7 +342,7 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
               <!-- Confirmation Details -->
               <tr>
                 <td align="center" style="padding: 10px 30px;">
-                  <p style="color: #333; font-size: 16px;">Thank you, <strong>Mr & Mrs. ${escapeHtml(invitation.invitee_name)}</strong>.</p>
+                  <p style="color: #333; font-size: 16px;">Thank you, <strong>${escapeHtml(invitation.invitee_name)}</strong>.</p>
                   <p style="color: #333; font-size: 16px;">We are delighted to confirm your attendance for a party of <strong>${invitation.confirmed_party_size}</strong>.</p>
                   
                   <div style="margin: 25px 0; padding: 15px; border-top: 1px solid #D4AF37; border-bottom: 1px solid #D4AF37;">
