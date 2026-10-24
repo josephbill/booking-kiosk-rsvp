@@ -111,6 +111,7 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
       try {
         if (!row.name || !row.email) throw new Error('name and email required');
 
+        // Resolve community (optional column in CSV)
         let communityId = null;
         if (row.community && row.community.trim()) {
           const key = row.community.trim().toLowerCase();
@@ -128,16 +129,16 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
         results.created++;
         results.emailsQueued++;
 
-        // Send invitation email
+        // Send invitation email. 
+        // The sendInvitationEmail function handles its own internal error logging 
+        // to the database, so we just catch here to track the count for the UI.
         try {
-          // If you want to disable CC for bulk imports to save quota, 
-          // pass { skipCc: true } here.
-          await sendInvitationEmail(inv, ev); 
+          await sendInvitationEmail(inv, ev);
         } catch (e) {
           results.emailsFailed++;
         }
 
-        // Throttle: 250ms delay = ~4 emails per second
+        // Throttle: 250ms delay = ~4 emails per second.
         // This prevents hitting Brevo API rate limits and keeps Render CPU stable.
         await sleep(250);
 
