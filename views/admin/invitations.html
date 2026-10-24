@@ -40,6 +40,7 @@
   /* Progress bar for import */
   #importProgress { height: 4px; margin-top: 8px; display: none; }
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -118,19 +119,25 @@
   </div>
 
   <hr class="my-4">
+    <hr class="my-4">
   <h2 class="h5">CSV Import</h2>
   <p class="text-muted small">
-    Paste CSV with headers: <code>name,email,maxPartySize,community</code><br>
+    Upload a <code>.csv</code> file with headers: <code>name,email,maxPartySize,community</code><br>
     <em>Note: Community must exactly match an existing community (case-insensitive). If it doesn't exist, the invite is still created but left unassigned.</em>
   </p>
-  <textarea id="csvInput" class="form-control" rows="5" placeholder="name,email,maxPartySize,community&#10;Jane Doe,jane@example.com,4,Nairobi&#10;John Smith,john@example.com,2,Mombasa"></textarea>
-  <div class="d-flex gap-2 mt-2 align-items-center">
+  
+  <div class="input-group mb-3">
+    <input type="file" class="form-control" id="csvFile" accept=".csv">
     <button class="btn btn-secondary" id="importBtn">
       <span class="btn-label"><i class="bi bi-upload"></i> Import</span>
     </button>
-    <span class="text-muted small" id="importHint"></span>
   </div>
-  <div class="progress" id="importProgress">
+  
+  <div class="small mb-2">
+    <a href="#" id="downloadTemplate">Download sample CSV template</a>
+  </div>
+
+  <div class="progress" id="importProgress" style="display: none; height: 4px; margin-top: 8px;">
     <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
   </div>
   <div id="importResult" class="mt-2"></div>
