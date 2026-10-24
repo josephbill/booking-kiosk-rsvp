@@ -256,6 +256,9 @@ async function sendInvitationEmail(invitation, event) {
                   <p style="color: #D4AF37; font-size: 14px; font-style: italic; margin: 0;">
                     Wishing you a Happy & Prosperous Diwali!
                   </p>
+                   <p style="color: #6f42c1; font-size: 14px; font-style: italic; margin: 0;">
+                    Powered By SFA Events
+                  </p>
                 </td>
               </tr>
             </table>
@@ -367,6 +370,9 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
                     : `<p style="color: #dc3545; font-weight: bold;">Your QR code could not be generated. Please contact the organizer.</p>`
                   }
                   <p style="color: #666; font-size: 12px; margin-top: 15px;">Do not share this code.</p>
+                  <p style="color: #6f42c1; font-size: 14px; font-style: italic; margin: 0;">
+                    Powered By SFA Events
+                  </p>
                 </td>
               </tr>
 
