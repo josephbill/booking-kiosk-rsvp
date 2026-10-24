@@ -81,26 +81,72 @@ router.post('/api/invitations', requireAuth, async (req, res, next) => {
 });
 
 // CSV import
+// Helper for throttling
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// CSV import
 router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
   try {
     const { rows } = req.body || {};
     if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows array required' });
-    const ev = (await pool.query('SELECT id FROM events ORDER BY id DESC LIMIT 1')).rows[0];
+
+    const ev = (await pool.query('SELECT * FROM events ORDER BY id DESC LIMIT 1')).rows[0];
     if (!ev) return res.status(400).json({ error: 'No event configured' });
-    const results = { created: 0, failed: 0, errors: [] };
+
+    const results = {
+      created: 0,
+      failed: 0,
+      emailsQueued: 0,
+      emailsFailed: 0,
+      errors: [],
+    };
+
+    // Resolve community names -> ids once
+    const communityRows = (await pool.query('SELECT id, name FROM communities')).rows;
+    const communityMap = new Map(
+      communityRows.map(c => [c.name.toLowerCase(), c.id])
+    );
+
     for (const row of rows) {
       try {
         if (!row.name || !row.email) throw new Error('name and email required');
-        await createInvitation({
-          eventId: ev.id, name: row.name, email: row.email,
+
+        let communityId = null;
+        if (row.community && row.community.trim()) {
+          const key = row.community.trim().toLowerCase();
+          communityId = communityMap.get(key) || null;
+        }
+
+        const inv = await createInvitation({
+          eventId: ev.id,
+          name: row.name,
+          email: row.email,
           maxPartySize: parseInt(row.maxPartySize, 10) || 4,
+          communityId,
         });
+
         results.created++;
+        results.emailsQueued++;
+
+        // Send invitation email
+        try {
+          // If you want to disable CC for bulk imports to save quota, 
+          // pass { skipCc: true } here.
+          await sendInvitationEmail(inv, ev); 
+        } catch (e) {
+          results.emailsFailed++;
+        }
+
+        // Throttle: 250ms delay = ~4 emails per second
+        // This prevents hitting Brevo API rate limits and keeps Render CPU stable.
+        await sleep(250);
+
       } catch (e) {
         results.failed++;
         results.errors.push({ row, error: e.message });
       }
     }
+
     res.json(results);
   } catch (e) { next(e); }
 });
