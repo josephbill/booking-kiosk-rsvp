@@ -29,16 +29,16 @@
 
   .empty-state { padding: 3rem 1rem; text-align: center; color: #6c757d; }
 
-  /* Action button spinners */
   .btn .spinner-border-sm { margin-right: .3rem; }
 
-  /* Row-action toolbar — compact so buttons fit */
   .row-actions { display: flex; flex-wrap: wrap; gap: .25rem; }
   .row-actions .btn { padding: .2rem .45rem; font-size: .78rem; }
 
-  /* Import result area */
   #importResult .alert { margin-bottom: 0; }
   .import-errors { max-height: 220px; overflow: auto; margin-top: .5rem; }
+  
+  /* Progress bar for import */
+  #importProgress { height: 4px; margin-top: 8px; display: none; }
 </style>
 </head>
 <body class="bg-light">
@@ -50,7 +50,7 @@
       <a class="nav-link active" href="/admin/invitations">Invitations</a>
       <a class="nav-link" href="/admin/attendance">Attendance</a>
       <a class="nav-link" href="/admin/scanner/">Scanner</a>
-      <!-- <a class="nav-link" href="#" id="logoutLink">Logout</a> -->
+      <a class="nav-link" href="#" id="logoutLink">Logout</a>
     </div>
   </div>
 </nav>
@@ -119,13 +119,19 @@
 
   <hr class="my-4">
   <h2 class="h5">CSV Import</h2>
-  <p class="text-muted small">Paste CSV with headers: <code>name,email,maxPartySize,community</code></p>
-  <textarea id="csvInput" class="form-control" rows="5" placeholder="name,email,maxPartySize,community&#10;Jane Doe,jane@example.com,4,Nairobi"></textarea>
+  <p class="text-muted small">
+    Paste CSV with headers: <code>name,email,maxPartySize,community</code><br>
+    <em>Note: Community must exactly match an existing community (case-insensitive). If it doesn't exist, the invite is still created but left unassigned.</em>
+  </p>
+  <textarea id="csvInput" class="form-control" rows="5" placeholder="name,email,maxPartySize,community&#10;Jane Doe,jane@example.com,4,Nairobi&#10;John Smith,john@example.com,2,Mombasa"></textarea>
   <div class="d-flex gap-2 mt-2 align-items-center">
     <button class="btn btn-secondary" id="importBtn">
       <span class="btn-label"><i class="bi bi-upload"></i> Import</span>
     </button>
     <span class="text-muted small" id="importHint"></span>
+  </div>
+  <div class="progress" id="importProgress">
+    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
   </div>
   <div id="importResult" class="mt-2"></div>
 </div>
@@ -148,7 +154,6 @@
           <input type="email" class="form-control" name="email" required>
         </div>
         
-        <!-- NEW: Community Selection -->
         <div class="mb-2">
           <label class="form-label">Community</label>
           <div class="input-group">
@@ -218,13 +223,17 @@ function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout
 const overlay = document.getElementById('pageOverlay');
 const overlayText = document.getElementById('overlayText');
 function showOverlay(text = 'Working…') {
-  overlayText.textContent = text;
-  overlay.classList.add('active');
-  overlay.setAttribute('aria-hidden', 'false');
+  if(overlayText) overlayText.textContent = text;
+  if(overlay) {
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
 }
 function hideOverlay() {
-  overlay.classList.remove('active');
-  overlay.setAttribute('aria-hidden', 'true');
+  if(overlay) {
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
 }
 
 const tbody = document.getElementById('rows');
@@ -492,7 +501,6 @@ async function loadCommunities() {
     if (!res.ok) return;
     const data = await res.json();
     const select = document.getElementById('communitySelect');
-    // Keep the default empty option, append fetched ones
     select.innerHTML = '<option value="">-- Select Community --</option>' + 
       data.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     communitiesLoaded = true;
@@ -501,10 +509,8 @@ async function loadCommunities() {
   }
 }
 
-// Load communities when the modal opens
 document.getElementById('createModal').addEventListener('show.bs.modal', loadCommunities);
 
-// Handle adding a new community inline
 document.getElementById('addCommunityBtn').addEventListener('click', async () => {
   const name = prompt("Enter new community name:");
   if (!name || !name.trim()) return;
@@ -526,7 +532,6 @@ document.getElementById('addCommunityBtn').addEventListener('click', async () =>
       return;
     }
     
-    // Add to dropdown and auto-select
     const select = document.getElementById('communitySelect');
     const opt = document.createElement('option');
     opt.value = data.id;
@@ -580,17 +585,23 @@ createForm.addEventListener('submit', async (e) => {
   }, 'Creating…');
 });
 
-/* ---------- CSV import ---------- */
+/* ---------- CSV Import (Chunked for large lists) ---------- */
 const importBtn = document.getElementById('importBtn');
 const importResult = document.getElementById('importResult');
 const importHint = document.getElementById('importHint');
+const importProgress = document.getElementById('importProgress');
 
 importBtn.addEventListener('click', async () => {
   importResult.innerHTML = '';
   importHint.textContent = '';
+  importProgress.style.display = 'none';
   const text = document.getElementById('csvInput').value.trim();
   const lines = text.split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) { importHint.textContent = 'Include a header row + at least one data row.'; return; }
+  
+  if (lines.length < 2) { 
+    importHint.textContent = 'Include a header row + at least one data row.'; 
+    return; 
+  }
   
   const header = lines[0].split(',').map(s => s.trim());
   if (!header.includes('name') || !header.includes('email')) {
@@ -598,8 +609,7 @@ importBtn.addEventListener('click', async () => {
     return;
   }
   
-  const rows = lines.slice(1).map(l => {
-    // Simple split - handles basic CSV, but not quoted commas
+  const allRows = lines.slice(1).map(l => {
     const vals = l.split(',');
     const obj = {};
     header.forEach((h, i) => obj[h] = (vals[i] || '').trim());
@@ -607,38 +617,80 @@ importBtn.addEventListener('click', async () => {
       name: obj.name, 
       email: obj.email, 
       maxPartySize: obj.maxPartySize,
-      community: obj.community // Pass community name for backend resolution
+      community: obj.community 
     };
   });
 
+  // Chunk the list into batches of 50
+  const CHUNK_SIZE = 50;
+  const chunks = [];
+  for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
+    chunks.push(allRows.slice(i, i + CHUNK_SIZE));
+  }
+
+  let totalCreated = 0;
+  let totalFailed = 0;
+  let totalEmailsQueued = 0;
+  let totalEmailsFailed = 0;
+  let allErrors = [];
+
   await withButtonSpinner(importBtn, async () => {
-    try {
-      const r = await fetch('/admin/api/invitations/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows }),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        importResult.innerHTML = `<div class="alert alert-danger">Import failed: ${esc(data.error || r.statusText)}</div>`;
-        return;
-      }
-      const cls = data.failed > 0 ? 'warning' : 'success';
-      let html = `<div class="alert alert-${cls}">
-        <strong>Created:</strong> ${data.created} &nbsp;
-        <strong>Failed:</strong> ${data.failed}</div>`;
-      if (data.errors && data.errors.length) {
-        html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
-        for (const err of data.errors) {
-          const row = err.row || {};
-          html += `<li><code>${esc(row.email || '(no email)')}</code> — ${esc(err.error)}</li>`;
+    importProgress.style.display = 'block';
+    const progressBar = importProgress.querySelector('.progress-bar');
+    
+    for (let i = 0; i < chunks.length; i++) {
+      // Update UI
+      const pct = Math.round(((i) / chunks.length) * 100);
+      progressBar.style.width = `${pct}%`;
+      importBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Batch ${i + 1}/${chunks.length}...`;
+      
+      try {
+        const r = await fetch('/admin/api/invitations/import', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: chunks[i] }),
+        });
+        
+        const data = await r.json().catch(() => ({}));
+        
+        if (r.ok) {
+          totalCreated += data.created || 0;
+          totalFailed += data.failed || 0;
+          totalEmailsQueued += data.emailsQueued || 0;
+          totalEmailsFailed += data.emailsFailed || 0;
+          if (data.errors) allErrors = allErrors.concat(data.errors);
+        } else {
+          totalFailed += chunks[i].length;
+          allErrors.push({ row: { email: `Batch ${i+1}` }, error: data.error || 'Batch failed' });
         }
-        html += `</ul></div>`;
+      } catch (err) {
+        totalFailed += chunks[i].length;
+        allErrors.push({ row: { email: `Batch ${i+1}` }, error: err.message });
       }
-      importResult.innerHTML = html;
-      if (data.created > 0) await loadList({ silent: true });
-    } catch (err) {
-      importResult.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
     }
+
+    // Final UI Update
+    progressBar.style.width = '100%';
+    setTimeout(() => { importProgress.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
+
+    const cls = (totalFailed > 0 || totalEmailsFailed > 0) ? 'warning' : 'success';
+    let html = `<div class="alert alert-${cls}">
+      <strong>Created:</strong> ${totalCreated} &nbsp;
+      <strong>Failed:</strong> ${totalFailed} &nbsp;
+      <strong>Emails queued:</strong> ${totalEmailsQueued} &nbsp;
+      <strong>Email failures:</strong> ${totalEmailsFailed}
+    </div>`;
+    
+    if (allErrors.length > 0) {
+      html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
+      for (const err of allErrors) {
+        const row = err.row || {};
+        html += `<li><code>${esc(row.email || '(no email)')}</code> — ${esc(err.error)}</li>`;
+      }
+      html += `</ul></div>`;
+    }
+    
+    importResult.innerHTML = html;
+    if (totalCreated > 0) await loadList({ silent: true });
   }, 'Importing…');
 });
 
@@ -652,18 +704,18 @@ document.getElementById('clearSearch').addEventListener('click', () => {
 document.getElementById('reloadBtn').addEventListener('click', () => loadList());
 document.getElementById('retryBtn').addEventListener('click', () => loadList());
 
-//document.getElementById('logoutLink').addEventListener('click', async (e) => {
-//  e.preventDefault();
-//  showOverlay('Signing out…');
-//  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
-//  window.location.href = '/auth/login';
-// });
+document.getElementById('logoutLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  showOverlay('Signing out…');
+  try { await fetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+  window.location.href = '/auth/login';
+});
 
 /* ---------- Init ---------- */
 loadList();
 </script>
 
-<!-- Page overlay (must exist for showOverlay calls) -->
+<!-- Page overlay -->
 <div class="page-overlay" id="pageOverlay" aria-hidden="true">
   <div class="text-center">
     <div class="spinner-border text-primary" role="status"></div>
