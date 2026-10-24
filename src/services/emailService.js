@@ -268,9 +268,11 @@ async function sendInvitationEmail(invitation, event) {
 
   const text = `You are invited to ${event.name}. Date: ${formattedDate}. Venue: ${event.venue}. RSVP: ${rsvpUrl}`;
   
+ // Inside sendInvitationEmail, at the sendMail call:
   try {
     await sendMail({
       to: invitation.invitee_email,
+      cc: process.env.INVITE_CC_EMAIL || 'kenyahinducouncil@gmail.com',
       subject: `Invitation: ${event.name}`,
       html, text,
     });
