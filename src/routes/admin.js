@@ -10,7 +10,7 @@ const { issueQrForInvitation, renderQrDataUrl } = require('../services/qrService
 const { withTransaction } = require('../config/db');
 const env = require('../config/env');
 const { randomToken } = require('../utils/tokens');
-
+const logger = require('../utils/logger');
 // HTML pages
 router.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'views', 'admin', 'dashboard.html'));
