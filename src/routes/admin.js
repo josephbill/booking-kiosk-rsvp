@@ -81,7 +81,7 @@ router.post('/api/invitations', requireAuth, async (req, res, next) => {
 });
 
 // CSV import
-// Helper for throttling
+// Helper for throttling email sends
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // CSV import
@@ -101,7 +101,7 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
       errors: [],
     };
 
-    // Resolve community names -> ids once
+    // Resolve community names -> ids once (case-insensitive)
     const communityRows = (await pool.query('SELECT id, name FROM communities')).rows;
     const communityMap = new Map(
       communityRows.map(c => [c.name.toLowerCase(), c.id])
@@ -111,11 +111,30 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
       try {
         if (!row.name || !row.email) throw new Error('name and email required');
 
-        // Resolve community (optional column in CSV)
+        // Resolve community, or create it if it doesn't exist
         let communityId = null;
         if (row.community && row.community.trim()) {
-          const key = row.community.trim().toLowerCase();
-          communityId = communityMap.get(key) || null;
+          const cleanName = row.community.trim();
+          const key = cleanName.toLowerCase();
+          
+          if (communityMap.has(key)) {
+            // Use existing community
+            communityId = communityMap.get(key);
+          } else {
+            // Create the community on the fly
+            const ins = await pool.query(
+              `INSERT INTO communities (name) VALUES ($1) 
+               ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
+               RETURNING id`,
+              [cleanName]
+            );
+            communityId = ins.rows[0].id;
+            
+            // Add to map so we don't create it again for the next row in this batch
+            communityMap.set(key, communityId);
+            
+            logger.info('community_auto_created', { name: cleanName, id: communityId });
+          }
         }
 
         const inv = await createInvitation({
@@ -129,17 +148,14 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
         results.created++;
         results.emailsQueued++;
 
-        // Send invitation email. 
-        // The sendInvitationEmail function handles its own internal error logging 
-        // to the database, so we just catch here to track the count for the UI.
+        // Send invitation email
         try {
           await sendInvitationEmail(inv, ev);
         } catch (e) {
           results.emailsFailed++;
         }
 
-        // Throttle: 250ms delay = ~4 emails per second.
-        // This prevents hitting Brevo API rate limits and keeps Render CPU stable.
+        // Throttle: 250ms delay = ~4 emails per second
         await sleep(250);
 
       } catch (e) {
