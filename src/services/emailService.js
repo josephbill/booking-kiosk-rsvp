@@ -199,7 +199,7 @@ async function sendInvitationEmail(invitation, event) {
               <tr>
                 <td align="center" style="padding: 0 20px; background-color: #FDF5E6;">
                   <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 10px 0;">
-                    📅 ${formattedDate}
+                     1st November 2026
                   </p>
                   <p style="color: #800000; font-size: 18px; font-weight: bold; margin: 10px 0 20px 0;">
                     📍 ${escapeHtml(event.venue).toUpperCase()}
