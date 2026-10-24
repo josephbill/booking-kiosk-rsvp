@@ -11,6 +11,10 @@ const { withTransaction } = require('../config/db');
 const env = require('../config/env');
 const { randomToken } = require('../utils/tokens');
 const logger = require('../utils/logger');
+
+// Helper for throttling email sends
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // HTML pages
 router.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'views', 'admin', 'dashboard.html'));
@@ -40,49 +44,71 @@ router.get('/api/invitations', requireAuth, async (req, res, next) => {
     const clauses = [];
     if (q) {
       params.push(`%${q}%`);
-      clauses.push(`(invitee_name ILIKE $${params.length} OR invitee_email ILIKE $${params.length})`);
+      clauses.push(`(i.invitee_name ILIKE $${params.length} OR i.invitee_email ILIKE $${params.length})`);
     }
     if (status) {
       params.push(status);
-      clauses.push(`rsvp_status = $${params.length}`);
+      clauses.push(`i.rsvp_status = $${params.length}`);
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const { rows } = await pool.query(
-      `SELECT id, invitee_name, invitee_email, rsvp_status, confirmed_party_size,
-              max_party_size, response_at, created_at,
-              (SELECT checked_in_at FROM checkins WHERE invitation_id=invitations.id) AS checked_in_at
-       FROM invitations ${where}
-       ORDER BY created_at DESC LIMIT 500`,
+      `SELECT i.id, i.invitee_name, i.invitee_email, i.rsvp_status, i.confirmed_party_size,
+              i.max_party_size, i.response_at, i.created_at,
+              c.name AS community_name,
+              (SELECT checked_in_at FROM checkins WHERE invitation_id=i.id) AS checked_in_at
+       FROM invitations i
+       LEFT JOIN communities c ON c.id = i.community_id
+       ${where}
+       ORDER BY i.created_at DESC LIMIT 500`,
       params
     );
     res.json({ invitations: rows });
   } catch (e) { next(e); }
 });
 
+// Communities
+router.get('/api/communities', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name FROM communities ORDER BY name ASC');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+router.post('/api/communities', requireAuth, async (req, res, next) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || name.trim() === '') return res.status(400).json({ error: 'Name required' });
+    const { rows } = await pool.query(
+      'INSERT INTO communities (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id, name',
+      [name.trim()]
+    );
+    if (rows.length === 0) return res.status(409).json({ error: 'Community already exists' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
 // Create single invitation
 router.post('/api/invitations', requireAuth, async (req, res, next) => {
   try {
-    const { name, email, maxPartySize } = req.body || {};
+    const { name, email, maxPartySize, communityId } = req.body || {};
     if (!name || !email) return res.status(400).json({ error: 'name and email required' });
-    const event = await pool.query('SELECT id FROM events ORDER BY id DESC LIMIT 1');
+    const event = await pool.query('SELECT * FROM events ORDER BY id DESC LIMIT 1');
     if (!event.rows[0]) return res.status(400).json({ error: 'No event configured' });
+
     const inv = await createInvitation({
-      eventId: event.rows[0].id, name, email,
+      eventId: event.rows[0].id,
+      name,
+      email: email.trim(),
       maxPartySize: parseInt(maxPartySize, 10) || 4,
+      communityId: communityId || null,
     });
-    // Send email
-    const ev = (await pool.query('SELECT * FROM events WHERE id=$1', [event.rows[0].id])).rows[0];
-    sendInvitationEmail(inv, ev).catch(() => {});
+
+    sendInvitationEmail(inv, event.rows[0]).catch(() => {});
     res.json({ ok: true, id: inv.id });
   } catch (e) {
-    if (e.code === '23505') return res.status(409).json({ error: 'Invitee email already exists for this event' });
     next(e);
   }
 });
-
-// CSV import
-// Helper for throttling email sends
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // CSV import
 router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
@@ -116,31 +142,27 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
         if (row.community && row.community.trim()) {
           const cleanName = row.community.trim();
           const key = cleanName.toLowerCase();
-          
+
           if (communityMap.has(key)) {
-            // Use existing community
             communityId = communityMap.get(key);
           } else {
-            // Create the community on the fly
             const ins = await pool.query(
-              `INSERT INTO communities (name) VALUES ($1) 
-               ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
+              `INSERT INTO communities (name) VALUES ($1)
+               ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
                RETURNING id`,
               [cleanName]
             );
             communityId = ins.rows[0].id;
-            
-            // Add to map so we don't create it again for the next row in this batch
             communityMap.set(key, communityId);
-            
             logger.info('community_auto_created', { name: cleanName, id: communityId });
           }
         }
 
+        // Always create a new invitation, even if the email exists
         const inv = await createInvitation({
           eventId: ev.id,
           name: row.name,
-          email: row.email,
+          email: row.email.trim(),
           maxPartySize: parseInt(row.maxPartySize, 10) || 4,
           communityId,
         });
@@ -148,14 +170,12 @@ router.post('/api/invitations/import', requireAuth, async (req, res, next) => {
         results.created++;
         results.emailsQueued++;
 
-        // Send invitation email
         try {
           await sendInvitationEmail(inv, ev);
         } catch (e) {
           results.emailsFailed++;
         }
 
-        // Throttle: 250ms delay = ~4 emails per second
         await sleep(250);
 
       } catch (e) {
@@ -221,8 +241,7 @@ router.post('/api/invitations/:id/regenerate-qr', requireAuth, async (req, res, 
   } catch (e) { next(e); }
 });
 
-// delete 
-// Delete invitation (cascades to qr_credentials, checkins, email_logs via FK)
+// Delete invitation
 router.delete('/api/invitations/:id', requireAuth, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -233,7 +252,6 @@ router.delete('/api/invitations/:id', requireAuth, async (req, res, next) => {
       if (!found.rows[0]) return { found: false };
 
       await client.query('DELETE FROM invitations WHERE id=$1', [id]);
-
       await client.query(
         `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id)
          VALUES ($1,'delete_invitation','invitation',$2)`,
@@ -246,29 +264,5 @@ router.delete('/api/invitations/:id', requireAuth, async (req, res, next) => {
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
-
-// Get all communities
-router.get('/api/communities', requireAuth, async (req, res, next) => {
-  try {
-    const { rows } = await pool.query('SELECT id, name FROM communities ORDER BY name ASC');
-    res.json(rows);
-  } catch (e) { next(e); }
-});
-
-// Create a new community
-router.post('/api/communities', requireAuth, async (req, res, next) => {
-  try {
-    const { name } = req.body || {};
-    if (!name || name.trim() === '') return res.status(400).json({ error: 'Name required' });
-    const { rows } = await pool.query(
-      'INSERT INTO communities (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id, name',
-      [name.trim()]
-    );
-    if (rows.length === 0) return res.status(409).json({ error: 'Community already exists' });
-    res.json(rows[0]);
-  } catch (e) { next(e); }
-});
-
-
 
 module.exports = router;
