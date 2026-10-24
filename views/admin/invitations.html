@@ -36,11 +36,9 @@
 
   #importResult .alert { margin-bottom: 0; }
   .import-errors { max-height: 220px; overflow: auto; margin-top: .5rem; }
-  
-  /* Progress bar for import */
+
   #importProgress { height: 4px; margin-top: 8px; display: none; }
 </style>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -69,7 +67,6 @@
     </div>
   </div>
 
-  <!-- Filters -->
   <div class="row g-2 mb-3">
     <div class="col-md-6">
       <div class="input-group">
@@ -94,13 +91,11 @@
     </div>
   </div>
 
-  <!-- Error banner -->
   <div id="errorBanner" class="alert alert-danger d-none d-flex justify-content-between align-items-center">
     <span id="errorText">Something went wrong.</span>
     <button class="btn btn-sm btn-outline-danger" id="retryBtn">Retry</button>
   </div>
 
-  <!-- Table -->
   <div class="table-responsive bg-white rounded shadow-sm">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
@@ -119,31 +114,29 @@
   </div>
 
   <hr class="my-4">
-    <hr class="my-4">
   <h2 class="h5">CSV Import</h2>
   <p class="text-muted small">
     Upload a <code>.csv</code> file with headers: <code>name,email,maxPartySize,community</code><br>
-    <em>Note: Community must exactly match an existing community (case-insensitive). If it doesn't exist, the invite is still created but left unassigned.</em>
+    <em>Note: Multiple rows with the same email are allowed — each row creates a separate invitation.</em>
   </p>
-  
+
   <div class="input-group mb-3">
     <input type="file" class="form-control" id="csvFile" accept=".csv">
     <button class="btn btn-secondary" id="importBtn">
       <span class="btn-label"><i class="bi bi-upload"></i> Import</span>
     </button>
   </div>
-  
+
   <div class="small mb-2">
     <a href="#" id="downloadTemplate">Download sample CSV template</a>
   </div>
 
-  <div class="progress" id="importProgress" style="display: none; height: 4px; margin-top: 8px;">
+  <div class="progress" id="importProgress">
     <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
   </div>
   <div id="importResult" class="mt-2"></div>
 </div>
 
-<!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content">
     <div class="modal-header">
@@ -160,7 +153,7 @@
           <label class="form-label">Email</label>
           <input type="email" class="form-control" name="email" required>
         </div>
-        
+
         <div class="mb-2">
           <label class="form-label">Community</label>
           <div class="input-group">
@@ -190,7 +183,6 @@
   </div></div>
 </div>
 
-<!-- Confirm Delete Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content">
     <div class="modal-header">
@@ -213,9 +205,9 @@
   </div></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-/* ---------- Utilities ---------- */
 const statusBadge = {
   pending: 'warning', accepted: 'success', declined: 'danger', reopened: 'info',
 };
@@ -226,7 +218,6 @@ function esc(s) {
 }
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 
-/* ---------- Overlay & error helpers ---------- */
 const overlay = document.getElementById('pageOverlay');
 const overlayText = document.getElementById('overlayText');
 function showOverlay(text = 'Working…') {
@@ -250,7 +241,6 @@ const errorText = document.getElementById('errorText');
 function showError(msg) { errorText.textContent = msg; errorBanner.classList.remove('d-none'); }
 function hideError() { errorBanner.classList.add('d-none'); }
 
-/* ---------- Toast helper ---------- */
 function toast(msg, type = 'success') {
   let host = document.getElementById('toastHost');
   if (!host) {
@@ -271,7 +261,6 @@ const style = document.createElement('style');
 style.textContent = '@keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}';
 document.head.appendChild(style);
 
-/* ---------- Button spinner helper ---------- */
 async function withButtonSpinner(btn, fn, label) {
   const original = btn.innerHTML;
   btn.disabled = true;
@@ -281,7 +270,6 @@ async function withButtonSpinner(btn, fn, label) {
   finally { btn.innerHTML = original; btn.disabled = false; }
 }
 
-/* ---------- Skeleton ---------- */
 function renderSkeleton() {
   tbody.innerHTML = Array.from({ length: 6 }).map(() => `
     <tr>
@@ -318,7 +306,6 @@ function renderErrorRow(msg) {
     </td></tr>`;
 }
 
-/* ---------- Row renderer ---------- */
 function renderRows(rows) {
   if (rows.length === 0) return renderEmpty();
   tbody.innerHTML = rows.map(i => `
@@ -353,7 +340,6 @@ function renderRows(rows) {
     </tr>`).join('');
 }
 
-/* ---------- Loader ---------- */
 let inflight = null;
 async function loadList({ silent = false } = {}) {
   if (inflight) { try { inflight.abort(); } catch (_) {} }
@@ -399,7 +385,6 @@ async function loadList({ silent = false } = {}) {
   }
 }
 
-/* ---------- Row action handlers ---------- */
 async function reopen(id, btn) {
   if (!confirm('Reopen this invitation? Any issued QR will be revoked.')) return;
   await withButtonSpinner(btn, async () => {
@@ -449,7 +434,6 @@ async function regenQr(id, btn) {
   }, 'Generating…');
 }
 
-/* ---------- Delete flow ---------- */
 const deleteModalEl = document.getElementById('deleteModal');
 const deleteModal = new bootstrap.Modal(deleteModalEl);
 let pendingDelete = null;
@@ -485,7 +469,6 @@ document.getElementById('deleteConfirm').addEventListener('click', async (e) => 
   }, 'Deleting…');
 });
 
-/* ---------- Delegated row action handler ---------- */
 tbody.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-action]');
   if (!btn) return;
@@ -498,9 +481,7 @@ tbody.addEventListener('click', (e) => {
   if (action === 'delete') return openDelete(id, btn.dataset.name, btn.dataset.email);
 });
 
-/* ---------- Community Dropdown Logic ---------- */
 let communitiesLoaded = false;
-
 async function loadCommunities() {
   if (communitiesLoaded) return;
   try {
@@ -508,7 +489,7 @@ async function loadCommunities() {
     if (!res.ok) return;
     const data = await res.json();
     const select = document.getElementById('communitySelect');
-    select.innerHTML = '<option value="">-- Select Community --</option>' + 
+    select.innerHTML = '<option value="">-- Select Community --</option>' +
       data.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     communitiesLoaded = true;
   } catch (e) {
@@ -521,10 +502,10 @@ document.getElementById('createModal').addEventListener('show.bs.modal', loadCom
 document.getElementById('addCommunityBtn').addEventListener('click', async () => {
   const name = prompt("Enter new community name:");
   if (!name || !name.trim()) return;
-  
+
   const errDiv = document.getElementById('communityError');
   errDiv.classList.add('d-none');
-  
+
   try {
     const res = await fetch('/admin/api/communities', {
       method: 'POST',
@@ -532,20 +513,20 @@ document.getElementById('addCommunityBtn').addEventListener('click', async () =>
       body: JSON.stringify({ name: name.trim() })
     });
     const data = await res.json();
-    
+
     if (!res.ok) {
       errDiv.textContent = data.error || 'Failed to create community';
       errDiv.classList.remove('d-none');
       return;
     }
-    
+
     const select = document.getElementById('communitySelect');
     const opt = document.createElement('option');
     opt.value = data.id;
     opt.textContent = data.name;
     select.appendChild(opt);
     select.value = data.id;
-    
+
     toast('Community added');
   } catch (e) {
     errDiv.textContent = 'Network error while adding community.';
@@ -553,7 +534,6 @@ document.getElementById('addCommunityBtn').addEventListener('click', async () =>
   }
 });
 
-/* ---------- Create form ---------- */
 const createModalEl = document.getElementById('createModal');
 const createForm = document.getElementById('createForm');
 const createError = document.getElementById('createError');
@@ -563,7 +543,7 @@ createForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   createError.classList.add('d-none');
   const fd = new FormData(createForm);
-  
+
   await withButtonSpinner(createSubmit, async () => {
     try {
       const r = await fetch('/admin/api/invitations', {
@@ -592,17 +572,15 @@ createForm.addEventListener('submit', async (e) => {
   }, 'Creating…');
 });
 
-/* ---------- CSV Import (Chunked for large lists) ---------- */
 /* ---------- CSV Import (File Upload + Chunked) ---------- */
 const importBtn = document.getElementById('importBtn');
 const importResult = document.getElementById('importResult');
 const importProgress = document.getElementById('importProgress');
 const csvFileInput = document.getElementById('csvFile');
 
-// Template download logic
 document.getElementById('downloadTemplate').addEventListener('click', (e) => {
   e.preventDefault();
-  const csvContent = "name,email,maxPartySize,community\nJane Doe,jane@example.com,4,Nairobi\nJohn Smith,john@example.com,2,Mombasa";
+  const csvContent = "name,email,maxPartySize,community\nJane Doe,jane@example.com,4,Nairobi\nJohn Doe,shared@example.com,2,Mombasa\nBaby Doe,shared@example.com,1,Mombasa";
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
@@ -616,14 +594,13 @@ document.getElementById('downloadTemplate').addEventListener('click', (e) => {
 importBtn.addEventListener('click', async () => {
   importResult.innerHTML = '';
   importProgress.style.display = 'none';
-  
+
   const file = csvFileInput.files[0];
   if (!file) {
     importResult.innerHTML = `<div class="alert alert-warning">Please select a CSV file first.</div>`;
     return;
   }
 
-  // Use PapaParse to handle commas inside quotes correctly
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
@@ -637,7 +614,7 @@ importBtn.addEventListener('click', async () => {
       const allRows = results.data.map(row => ({
         name: row.name || '',
         email: row.email || '',
-        maxPartySize: row.maxpartysize || row.max_party_size || row.max_party_size || '', // handle slight header variations
+        maxPartySize: row.maxpartysize || row.max_party_size || '',
         community: row.community || ''
       }));
 
@@ -646,7 +623,6 @@ importBtn.addEventListener('click', async () => {
         return;
       }
 
-      // Chunk the list into batches of 50
       const CHUNK_SIZE = 50;
       const chunks = [];
       for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
@@ -662,20 +638,20 @@ importBtn.addEventListener('click', async () => {
       await withButtonSpinner(importBtn, async () => {
         importProgress.style.display = 'block';
         const progressBar = importProgress.querySelector('.progress-bar');
-        
+
         for (let i = 0; i < chunks.length; i++) {
           const pct = Math.round(((i) / chunks.length) * 100);
           progressBar.style.width = `${pct}%`;
           importBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Batch ${i + 1}/${chunks.length}...`;
-          
+
           try {
             const r = await fetch('/admin/api/invitations/import', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ rows: chunks[i] }),
             });
-            
+
             const data = await r.json().catch(() => ({}));
-            
+
             if (r.ok) {
               totalCreated += data.created || 0;
               totalFailed += data.failed || 0;
@@ -702,7 +678,7 @@ importBtn.addEventListener('click', async () => {
           <strong>Emails queued:</strong> ${totalEmailsQueued} &nbsp;
           <strong>Email failures:</strong> ${totalEmailsFailed}
         </div>`;
-        
+
         if (allErrors.length > 0) {
           html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
           for (const err of allErrors) {
@@ -711,7 +687,7 @@ importBtn.addEventListener('click', async () => {
           }
           html += `</ul></div>`;
         }
-        
+
         importResult.innerHTML = html;
         if (totalCreated > 0) await loadList({ silent: true });
       }, 'Importing…');
@@ -719,7 +695,6 @@ importBtn.addEventListener('click', async () => {
   });
 });
 
-/* ---------- Filters, reload, logout ---------- */
 document.getElementById('search').addEventListener('input', debounce(() => loadList(), 300));
 document.getElementById('filter').addEventListener('change', () => loadList());
 document.getElementById('clearSearch').addEventListener('click', () => {
@@ -736,11 +711,9 @@ document.getElementById('logoutLink').addEventListener('click', async (e) => {
   window.location.href = '/auth/login';
 });
 
-/* ---------- Init ---------- */
 loadList();
 </script>
 
-<!-- Page overlay -->
 <div class="page-overlay" id="pageOverlay" aria-hidden="true">
   <div class="text-center">
     <div class="spinner-border text-primary" role="status"></div>
