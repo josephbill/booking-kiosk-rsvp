@@ -349,7 +349,7 @@ async function sendConfirmationEmail(invitation, event, rawQrToken) {
                   
                   <div style="margin: 25px 0; padding: 15px; border-top: 1px solid #D4AF37; border-bottom: 1px solid #D4AF37;">
                     <h3 style="color: #800000; font-size: 16px; margin: 0 0 10px 0;">EVENT DETAILS</h3>
-                    <p style="color: #333; font-size: 15px; margin: 5px 0;">📅 <strong>${new Date(event.event_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong></p>
+                    <p style="color: #333; font-size: 15px; margin: 5px 0;"><strong>Sunday, 1st November  2026</strong></p>
                     <p style="color: #333; font-size: 15px; margin: 5px 0;">📍 <strong>${escapeHtml(event.venue)}</strong></p>
                   </div>
                 </td>
