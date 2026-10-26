@@ -164,7 +164,7 @@ function renderRows(rows) {
       <td class="small text-muted">
         ${r.failed_at ? new Date(r.failed_at).toLocaleString() : '—'}
       </td>
-      <td><span class="err-text">${esc(r.last_error.message || 'Unknown error')}</span></td>
+      <td><span class="err-text">${esc(r.last_error || 'Unknown error')}</span></td>
       <td>
         <div class="row-actions">
           <button class="btn btn-outline-success" data-action="retry"
