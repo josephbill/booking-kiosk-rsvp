@@ -36,6 +36,121 @@ router.get('/api/summary', requireAuth, async (req, res, next) => {
   try { res.json(await getSummary()); } catch (e) { next(e); }
 });
 
+// List invitations whose MOST RECENT email log per type is 'failed'
+router.get('/api/email-failures', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (invitation_id, email_type)
+          id,
+          invitation_id,
+          email_type,
+          delivery_status,
+          attempt_count,
+          last_error,
+          created_at
+        FROM email_logs
+        ORDER BY invitation_id, email_type, created_at DESC
+      )
+      SELECT
+        l.id            AS log_id,
+        l.invitation_id,
+        l.email_type,
+        l.attempt_count,
+        l.last_error,
+        l.created_at    AS failed_at,
+        i.invitee_name,
+        i.invitee_email,
+        i.rsvp_status,
+        i.invitation_token
+      FROM latest l
+      JOIN invitations i ON i.id = l.invitation_id
+      WHERE l.delivery_status = 'failed'
+      ORDER BY l.created_at DESC
+      LIMIT 500
+    `);
+    res.json({ failures: rows });
+  } catch (e) { next(e); }
+});
+
+// Retry one failed email (either invitation or confirmation)
+router.post('/api/email-failures/:invitationId/retry', requireAuth, async (req, res, next) => {
+  try {
+    const invitationId = parseInt(req.params.invitationId, 10);
+    if (!Number.isInteger(invitationId)) {
+      return res.status(400).json({ error: 'Invalid invitation id' });
+    }
+
+    const invRes = await pool.query('SELECT * FROM invitations WHERE id=$1', [invitationId]);
+    const inv = invRes.rows[0];
+    if (!inv) return res.status(404).json({ error: 'Invitation not found' });
+
+    const evRes = await pool.query('SELECT * FROM events WHERE id=$1', [inv.event_id]);
+    const ev = evRes.rows[0];
+    if (!ev) return res.status(400).json({ error: 'Event not configured' });
+
+    // Determine which email type to resend based on the latest failed log
+    const lastFailed = await pool.query(
+      `SELECT email_type FROM email_logs
+       WHERE invitation_id=$1 AND delivery_status='failed'
+       ORDER BY created_at DESC LIMIT 1`,
+      [invitationId]
+    );
+    const type = lastFailed.rows[0]?.email_type || 'invitation';
+
+    try {
+      if (type === 'confirmation') {
+        // Need a fresh QR token — regenerate if none is active
+        const activeQr = await pool.query(
+          `SELECT id FROM qr_credentials
+           WHERE invitation_id=$1 AND credential_status='active'
+           ORDER BY issued_at DESC LIMIT 1`,
+          [invitationId]
+        );
+
+        // If there's no active QR, we can't resend a confirmation —
+        // fall back to sending a fresh invitation email instead.
+        if (activeQr.rows.length === 0) {
+          await sendInvitationEmail(inv, ev);
+          await pool.query(
+            `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata)
+             VALUES ($1, 'retry_email', 'invitation', $2, $3)`,
+            [req.user.id, invitationId, JSON.stringify({ email_type: 'invitation', fallback: true })]
+          );
+          return res.json({ ok: true, email_type: 'invitation' });
+        }
+
+        // We don't have the raw QR token anymore (it's hashed),
+        // so we cannot reconstruct the confirmation email.
+        // Fall back to invitation email.
+        await sendInvitationEmail(inv, ev);
+        await pool.query(
+          `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata)
+           VALUES ($1, 'retry_email', 'invitation', $2, $3)`,
+          [req.user.id, invitationId, JSON.stringify({ email_type: 'invitation', fallback: true })]
+        );
+        return res.json({ ok: true, email_type: 'invitation', fallback: true });
+      }
+
+      // Default: invitation email
+      await sendInvitationEmail(inv, ev);
+      await pool.query(
+        `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, metadata)
+         VALUES ($1, 'retry_email', 'invitation', $2, $3)`,
+        [req.user.id, invitationId, JSON.stringify({ email_type: 'invitation' })]
+      );
+      res.json({ ok: true, email_type: 'invitation' });
+    } catch (err) {
+      // sendInvitationEmail logs to email_logs itself, so just surface the message
+      res.status(500).json({ error: err.message });
+    }
+  } catch (e) { next(e); }
+});
+
+router.get('/email-failures', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'views', 'admin', 'email-failures.html'));
+});
+
 // List invitations
 router.get('/api/invitations', requireAuth, async (req, res, next) => {
   try {

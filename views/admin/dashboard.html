@@ -153,6 +153,7 @@ const CARD_DEFS = [
   { key: 'failed_emails',     label: 'Failed Emails',     color: 'secondary', icon: 'bi-envelope-exclamation' },
   { key: 'no_show_attendees', label: 'No-Shows (in parties)', color: 'secondary', icon: 'bi-person-dash' },
   { key: 'late_arrivals', label: 'Late Arrivals', color: 'info', icon: 'bi-person-plus' },
+  { key: 'failed_emails',     label: 'Failed Emails',     color: 'secondary', icon: 'bi-envelope-exclamation', href: '/admin/email-failures' }, // ← add href
 ];
 
 /* ---------- Skeleton renderer ---------- */
@@ -174,17 +175,19 @@ function renderCards(s) {
   cardsEl.innerHTML = CARD_DEFS.map(def => {
     const value = s[def.key] ?? 0;
     const sub = subLabelFor(def.key, s);
-    return `
-      <div class="col-6 col-md-3">
-        <div class="card metric-card h-100 border-${def.color} border-start border-4 shadow-sm position-relative">
-          <i class="bi ${def.icon} metric-icon"></i>
-          <div class="card-body">
-            <div class="metric-label">${esc(def.label)}</div>
-            <div class="metric-value stat-value">${fmt(value)}</div>
-            ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
-          </div>
+    const cardInner = `
+      <div class="card metric-card h-100 border-${def.color} border-start border-4 shadow-sm position-relative">
+        <i class="bi ${def.icon} metric-icon"></i>
+        <div class="card-body">
+          <div class="metric-label">${esc(def.label)}</div>
+          <div class="metric-value stat-value">${fmt(value)}</div>
+          ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
         </div>
       </div>`;
+    const wrapped = def.href
+      ? `<a href="${def.href}" class="text-decoration-none text-reset d-block h-100">${cardInner}</a>`
+      : cardInner;
+    return `<div class="col-6 col-md-3">${wrapped}</div>`;
   }).join('');
 }
 
