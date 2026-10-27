@@ -152,34 +152,72 @@ router.get('/email-failures', requireAuth, (req, res) => {
 });
 
 // List invitations
+// List invitations
 router.get('/api/invitations', requireAuth, async (req, res, next) => {
   try {
-    const { q, status } = req.query;
+    const { q, status, sort, dir, from, to } = req.query;
     const params = [];
     const clauses = [];
+
+    // Text search
     if (q) {
       params.push(`%${q}%`);
       clauses.push(`(i.invitee_name ILIKE $${params.length} OR i.invitee_email ILIKE $${params.length})`);
     }
+
+    // Status filter
     if (status) {
       params.push(status);
       clauses.push(`i.rsvp_status = $${params.length}`);
     }
+
+    // Date range filter (uses COALESCE so a pending invite falls back to created_at)
+    // The user's complaint is about accepted/declined — those have response_at.
+    // We filter on the most relevant timestamp: response_at if present, else created_at.
+    if (from) {
+      params.push(from);
+      clauses.push(`COALESCE(i.response_at, i.created_at) >= $${params.length}`);
+    }
+    if (to) {
+      // Inclusive end-of-day: add 1 day to `to`
+      params.push(to);
+      clauses.push(`COALESCE(i.response_at, i.created_at) < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    // Whitelist sort columns to prevent SQL injection
+    const SORTABLE = {
+      created_at:     'i.created_at',
+      response_at:    'i.response_at',
+      invitee_name:   'i.invitee_name',
+      invitee_email:  'i.invitee_email',
+      rsvp_status:    'i.rsvp_status',
+      community_name: 'c.name',
+    };
+    const sortCol = SORTABLE[sort] || 'i.created_at';
+    const sortDir = (dir === 'asc') ? 'ASC' : 'DESC';
+
+    // Use NULLS LAST so pending invites don't sort above responded ones
+    const orderBy = `ORDER BY ${sortCol} ${sortDir} NULLS LAST, i.created_at DESC`;
+
     const { rows } = await pool.query(
-      `SELECT i.id, i.invitee_name, i.invitee_email, i.rsvp_status, i.confirmed_party_size,
-              i.max_party_size, i.response_at, i.created_at,
+      `SELECT i.id, i.invitee_name, i.invitee_email, i.rsvp_status,
+              i.confirmed_party_size, i.max_party_size,
+              i.response_at, i.created_at,
               c.name AS community_name,
               (SELECT checked_in_at FROM checkins WHERE invitation_id=i.id) AS checked_in_at
        FROM invitations i
        LEFT JOIN communities c ON c.id = i.community_id
        ${where}
-       ORDER BY i.created_at DESC LIMIT 500`,
+       ${orderBy}
+       LIMIT 500`,
       params
     );
     res.json({ invitations: rows });
   } catch (e) { next(e); }
 });
+
 
 // Communities
 router.get('/api/communities', requireAuth, async (req, res, next) => {

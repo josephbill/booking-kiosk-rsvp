@@ -38,6 +38,21 @@
   .import-errors { max-height: 220px; overflow: auto; margin-top: .5rem; }
 
   #importProgress { height: 4px; margin-top: 8px; display: none; }
+
+  /* Sortable column headers */
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th.sortable:hover { background-color: #e9ecef; }
+  th.sortable .sort-icon {
+    font-size: .75rem;
+    opacity: .35;
+    margin-left: .2rem;
+  }
+  th.sortable.sort-active .sort-icon { opacity: 1; }
+  th.sortable.sort-active { color: #0d6efd; }
 </style>
 </head>
 <body class="bg-light">
@@ -49,6 +64,7 @@
       <a class="nav-link active" href="/admin/invitations">Invitations</a>
       <a class="nav-link" href="/admin/attendance">Attendance</a>
       <a class="nav-link" href="/admin/scanner/">Scanner</a>
+      <a class="nav-link" href="/admin/email-failures">Email Failures</a>
       <a class="nav-link" href="#" id="logoutLink">Logout</a>
     </div>
   </div>
@@ -67,8 +83,9 @@
     </div>
   </div>
 
+  <!-- Filters -->
   <div class="row g-2 mb-3">
-    <div class="col-md-6">
+    <div class="col-md-4">
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
         <input id="search" class="form-control" placeholder="Search name or email">
@@ -77,7 +94,7 @@
         </button>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <select id="filter" class="form-select">
         <option value="">All statuses</option>
         <option value="pending">Pending</option>
@@ -86,26 +103,41 @@
         <option value="reopened">Reopened</option>
       </select>
     </div>
-    <div class="col-md-3">
-      <span class="text-muted small" id="meta"></span>
+    <div class="col-md-2">
+      <label class="form-label small text-muted mb-0">From</label>
+      <input type="date" id="dateFrom" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small text-muted mb-0">To</label>
+      <input type="date" id="dateTo" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-outline-secondary btn-sm w-100" id="clearDates" title="Clear date filters">
+        <i class="bi bi-x-circle"></i> Clear
+      </button>
     </div>
   </div>
 
+  <div class="mb-2 small text-muted" id="meta"></div>
+
+  <!-- Error banner -->
   <div id="errorBanner" class="alert alert-danger d-none d-flex justify-content-between align-items-center">
     <span id="errorText">Something went wrong.</span>
     <button class="btn btn-sm btn-outline-danger" id="retryBtn">Retry</button>
   </div>
 
+  <!-- Table -->
   <div class="table-responsive bg-white rounded shadow-sm">
     <table class="table table-sm align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Community</th>
-          <th>Status</th>
+          <th class="sortable" data-sort="invitee_name">Name <span class="sort-icon bi bi-arrow-down-up"></span></th>
+          <th class="sortable" data-sort="invitee_email">Email <span class="sort-icon bi bi-arrow-down-up"></span></th>
+          <th class="sortable" data-sort="community_name">Community <span class="sort-icon bi bi-arrow-down-up"></span></th>
+          <th class="sortable" data-sort="rsvp_status">Status <span class="sort-icon bi bi-arrow-down-up"></span></th>
           <th>Party</th>
-          <th>Checked In</th>
+          <th class="sortable" data-sort="response_at">Response Date <span class="sort-icon bi bi-arrow-down-up"></span></th>
+          <th class="sortable" data-sort="created_at">Created <span class="sort-icon bi bi-arrow-down-up"></span></th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -137,6 +169,7 @@
   <div id="importResult" class="mt-2"></div>
 </div>
 
+<!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content">
     <div class="modal-header">
@@ -153,7 +186,6 @@
           <label class="form-label">Email</label>
           <input type="email" class="form-control" name="email" required>
         </div>
-
         <div class="mb-2">
           <label class="form-label">Community</label>
           <div class="input-group">
@@ -166,7 +198,6 @@
           </div>
           <div id="communityError" class="text-danger small mt-1 d-none"></div>
         </div>
-
         <div class="mb-2">
           <label class="form-label">Max party size</label>
           <input type="number" min="1" max="20" value="4" class="form-control" name="maxPartySize">
@@ -183,6 +214,7 @@
   </div></div>
 </div>
 
+<!-- Confirm Delete Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content">
     <div class="modal-header">
@@ -241,6 +273,36 @@ const errorText = document.getElementById('errorText');
 function showError(msg) { errorText.textContent = msg; errorBanner.classList.remove('d-none'); }
 function hideError() { errorBanner.classList.add('d-none'); }
 
+/* ---------- Sort state ---------- */
+let sortState = { column: 'created_at', direction: 'desc' };
+
+function updateSortHeaders() {
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.classList.remove('sort-active');
+    const icon = th.querySelector('.sort-icon');
+    icon.className = 'sort-icon bi bi-arrow-down-up';
+    if (th.dataset.sort === sortState.column) {
+      th.classList.add('sort-active');
+      icon.className = `sort-icon bi bi-arrow-${sortState.direction === 'asc' ? 'up' : 'down'}`;
+    }
+  });
+}
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (sortState.column === col) {
+      sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortState.column = col;
+      sortState.direction = 'asc';
+    }
+    updateSortHeaders();
+    loadList();
+  });
+});
+
+/* ---------- Toast ---------- */
 function toast(msg, type = 'success') {
   let host = document.getElementById('toastHost');
   if (!host) {
@@ -270,6 +332,7 @@ async function withButtonSpinner(btn, fn, label) {
   finally { btn.innerHTML = original; btn.disabled = false; }
 }
 
+/* ---------- Skeleton & states ---------- */
 function renderSkeleton() {
   tbody.innerHTML = Array.from({ length: 6 }).map(() => `
     <tr>
@@ -279,13 +342,14 @@ function renderSkeleton() {
       <td><span class="skeleton" style="width:50%"></span></td>
       <td><span class="skeleton" style="width:30%"></span></td>
       <td><span class="skeleton" style="width:70%"></span></td>
+      <td><span class="skeleton" style="width:70%"></span></td>
       <td><span class="skeleton" style="width:60%"></span></td>
     </tr>`).join('');
 }
 
 function renderEmpty() {
   tbody.innerHTML = `
-    <tr><td colspan="7">
+    <tr><td colspan="8">
       <div class="empty-state">
         <i class="bi bi-envelope-paper" style="font-size:2rem"></i>
         <div class="mt-2 fw-semibold">No invitations found</div>
@@ -296,7 +360,7 @@ function renderEmpty() {
 
 function renderErrorRow(msg) {
   tbody.innerHTML = `
-    <tr><td colspan="7">
+    <tr><td colspan="8">
       <div class="empty-state text-danger">
         <i class="bi bi-exclamation-triangle" style="font-size:2rem"></i>
         <div class="mt-2 fw-semibold">Could not load invitations</div>
@@ -304,6 +368,14 @@ function renderErrorRow(msg) {
         <button class="btn btn-sm btn-outline-danger mt-2" onclick="loadList()">Retry</button>
       </div>
     </td></tr>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '<span class="text-muted small">—</span>';
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 }
 
 function renderRows(rows) {
@@ -315,7 +387,8 @@ function renderRows(rows) {
       <td>${i.community_name ? `<span class="badge bg-secondary">${esc(i.community_name)}</span>` : '<span class="text-muted small">—</span>'}</td>
       <td><span class="badge bg-${statusBadge[i.rsvp_status] || 'secondary'}">${esc(i.rsvp_status)}</span></td>
       <td>${i.confirmed_party_size ?? '-'} / ${i.max_party_size}</td>
-      <td>${i.checked_in_at ? new Date(i.checked_in_at).toLocaleString() : '-'}</td>
+      <td class="small">${fmtDate(i.response_at)}</td>
+      <td class="small">${fmtDate(i.created_at)}</td>
       <td>
         <div class="row-actions">
           <button class="btn btn-outline-secondary" data-action="reopen" data-id="${i.id}" title="Reopen">
@@ -340,6 +413,7 @@ function renderRows(rows) {
     </tr>`).join('');
 }
 
+/* ---------- Loader ---------- */
 let inflight = null;
 async function loadList({ silent = false } = {}) {
   if (inflight) { try { inflight.abort(); } catch (_) {} }
@@ -350,9 +424,16 @@ async function loadList({ silent = false } = {}) {
 
   const q = document.getElementById('search').value.trim();
   const status = document.getElementById('filter').value;
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (status) params.set('status', status);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  params.set('sort', sortState.column);
+  params.set('dir', sortState.direction);
 
   const hasRows = tbody.querySelector('tr') && !tbody.querySelector('.skeleton');
   if (!silent) {
@@ -372,7 +453,14 @@ async function loadList({ silent = false } = {}) {
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const data = await res.json();
     renderRows(data.invitations || []);
-    metaEl.textContent = `${(data.invitations || []).length} invitation${(data.invitations || []).length === 1 ? '' : 's'}`;
+
+    // Meta line
+    const count = (data.invitations || []).length;
+    let metaParts = [`${count} invitation${count === 1 ? '' : 's'}`];
+    if (from || to) {
+      metaParts.push(`(${from || '…'} → ${to || '…'})`);
+    }
+    metaEl.textContent = metaParts.join(' ');
   } catch (e) {
     if (e.name === 'AbortError') return;
     console.error(e);
@@ -385,6 +473,7 @@ async function loadList({ silent = false } = {}) {
   }
 }
 
+/* ---------- Row actions ---------- */
 async function reopen(id, btn) {
   if (!confirm('Reopen this invitation? Any issued QR will be revoked.')) return;
   await withButtonSpinner(btn, async () => {
@@ -452,10 +541,7 @@ document.getElementById('deleteConfirm').addEventListener('click', async (e) => 
     try {
       const r = await fetch(`/admin/api/invitations/${pendingDelete.id}`, { method: 'DELETE' });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        toast('Delete failed: ' + (data.error || r.statusText), 'danger');
-        return;
-      }
+      if (!r.ok) { toast('Delete failed: ' + (data.error || r.statusText), 'danger'); return; }
       deleteModal.hide();
       toast(`Deleted ${pendingDelete.name}`);
       const row = tbody.querySelector(`tr[data-id="${pendingDelete.id}"]`);
@@ -481,6 +567,7 @@ tbody.addEventListener('click', (e) => {
   if (action === 'delete') return openDelete(id, btn.dataset.name, btn.dataset.email);
 });
 
+/* ---------- Communities ---------- */
 let communitiesLoaded = false;
 async function loadCommunities() {
   if (communitiesLoaded) return;
@@ -496,16 +583,13 @@ async function loadCommunities() {
     console.error('Failed to load communities', e);
   }
 }
-
 document.getElementById('createModal').addEventListener('show.bs.modal', loadCommunities);
 
 document.getElementById('addCommunityBtn').addEventListener('click', async () => {
   const name = prompt("Enter new community name:");
   if (!name || !name.trim()) return;
-
   const errDiv = document.getElementById('communityError');
   errDiv.classList.add('d-none');
-
   try {
     const res = await fetch('/admin/api/communities', {
       method: 'POST',
@@ -513,20 +597,17 @@ document.getElementById('addCommunityBtn').addEventListener('click', async () =>
       body: JSON.stringify({ name: name.trim() })
     });
     const data = await res.json();
-
     if (!res.ok) {
       errDiv.textContent = data.error || 'Failed to create community';
       errDiv.classList.remove('d-none');
       return;
     }
-
     const select = document.getElementById('communitySelect');
     const opt = document.createElement('option');
     opt.value = data.id;
     opt.textContent = data.name;
     select.appendChild(opt);
     select.value = data.id;
-
     toast('Community added');
   } catch (e) {
     errDiv.textContent = 'Network error while adding community.';
@@ -534,6 +615,7 @@ document.getElementById('addCommunityBtn').addEventListener('click', async () =>
   }
 });
 
+/* ---------- Create form ---------- */
 const createModalEl = document.getElementById('createModal');
 const createForm = document.getElementById('createForm');
 const createError = document.getElementById('createError');
@@ -572,7 +654,7 @@ createForm.addEventListener('submit', async (e) => {
   }, 'Creating…');
 });
 
-/* ---------- CSV Import (File Upload + Chunked) ---------- */
+/* ---------- CSV Import ---------- */
 const importBtn = document.getElementById('importBtn');
 const importResult = document.getElementById('importResult');
 const importProgress = document.getElementById('importProgress');
@@ -594,7 +676,6 @@ document.getElementById('downloadTemplate').addEventListener('click', (e) => {
 importBtn.addEventListener('click', async () => {
   importResult.innerHTML = '';
   importProgress.style.display = 'none';
-
   const file = csvFileInput.files[0];
   if (!file) {
     importResult.innerHTML = `<div class="alert alert-warning">Please select a CSV file first.</div>`;
@@ -610,25 +691,21 @@ importBtn.addEventListener('click', async () => {
         importResult.innerHTML = `<div class="alert alert-danger">Error parsing CSV. Check file format.</div>`;
         return;
       }
-
       const allRows = results.data.map(row => ({
         name: row.name || '',
         email: row.email || '',
         maxPartySize: row.maxpartysize || row.max_party_size || '',
         community: row.community || ''
       }));
-
       if (allRows.length === 0) {
         importResult.innerHTML = `<div class="alert alert-warning">No data rows found in the CSV.</div>`;
         return;
       }
-
       const CHUNK_SIZE = 50;
       const chunks = [];
       for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
         chunks.push(allRows.slice(i, i + CHUNK_SIZE));
       }
-
       let totalCreated = 0;
       let totalFailed = 0;
       let totalEmailsQueued = 0;
@@ -638,20 +715,16 @@ importBtn.addEventListener('click', async () => {
       await withButtonSpinner(importBtn, async () => {
         importProgress.style.display = 'block';
         const progressBar = importProgress.querySelector('.progress-bar');
-
         for (let i = 0; i < chunks.length; i++) {
           const pct = Math.round(((i) / chunks.length) * 100);
           progressBar.style.width = `${pct}%`;
           importBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Batch ${i + 1}/${chunks.length}...`;
-
           try {
             const r = await fetch('/admin/api/invitations/import', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ rows: chunks[i] }),
             });
-
             const data = await r.json().catch(() => ({}));
-
             if (r.ok) {
               totalCreated += data.created || 0;
               totalFailed += data.failed || 0;
@@ -667,10 +740,8 @@ importBtn.addEventListener('click', async () => {
             allErrors.push({ row: { email: `Batch ${i+1}` }, error: err.message });
           }
         }
-
         progressBar.style.width = '100%';
         setTimeout(() => { importProgress.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
-
         const cls = (totalFailed > 0 || totalEmailsFailed > 0) ? 'warning' : 'success';
         let html = `<div class="alert alert-${cls}">
           <strong>Created:</strong> ${totalCreated} &nbsp;
@@ -678,7 +749,6 @@ importBtn.addEventListener('click', async () => {
           <strong>Emails queued:</strong> ${totalEmailsQueued} &nbsp;
           <strong>Email failures:</strong> ${totalEmailsFailed}
         </div>`;
-
         if (allErrors.length > 0) {
           html += `<div class="import-errors"><ul class="small text-danger mb-0">`;
           for (const err of allErrors) {
@@ -687,7 +757,6 @@ importBtn.addEventListener('click', async () => {
           }
           html += `</ul></div>`;
         }
-
         importResult.innerHTML = html;
         if (totalCreated > 0) await loadList({ silent: true });
       }, 'Importing…');
@@ -695,10 +764,18 @@ importBtn.addEventListener('click', async () => {
   });
 });
 
+/* ---------- Filters ---------- */
 document.getElementById('search').addEventListener('input', debounce(() => loadList(), 300));
 document.getElementById('filter').addEventListener('change', () => loadList());
+document.getElementById('dateFrom').addEventListener('change', () => loadList());
+document.getElementById('dateTo').addEventListener('change', () => loadList());
 document.getElementById('clearSearch').addEventListener('click', () => {
   document.getElementById('search').value = '';
+  loadList();
+});
+document.getElementById('clearDates').addEventListener('click', () => {
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
   loadList();
 });
 document.getElementById('reloadBtn').addEventListener('click', () => loadList());
@@ -711,9 +788,12 @@ document.getElementById('logoutLink').addEventListener('click', async (e) => {
   window.location.href = '/auth/login';
 });
 
+/* ---------- Init ---------- */
+updateSortHeaders();
 loadList();
 </script>
 
+<!-- Page overlay -->
 <div class="page-overlay" id="pageOverlay" aria-hidden="true">
   <div class="text-center">
     <div class="spinner-border text-primary" role="status"></div>
