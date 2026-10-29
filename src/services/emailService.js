@@ -168,6 +168,12 @@ async function sendInvitationEmail(invitation, event) {
                 <td align="center" style="padding: 0 20px; background-color: #FDF5E6;">
                   <h1 style="color: #800000; font-size: 22px; margin: 10px 0 5px 0; letter-spacing: 1px; font-weight: bold;">HINDU COUNCIL OF KENYA</h1>
                   <div style="width: 60%; border-top: 1px solid #D4AF37; margin: 10px auto;"></div>
+ <h2 style="color: #800000; font-size: 24px; margin: 5px 0; font-weight: bold; font-style: italic; border-bottom: 1px solid #800000; display: inline-block; padding-bottom: 2px;">
+                   Final Reminder: Kindly RSVP today for Diwali with Hindu Council of Kenya : Ignore if already accepted.
+                  </h2>
+
+                  
+                  
                   
                   <p style="color: #333; font-size: 18px; font-style: italic; margin: 15px 0;">cordially invites</p>
                   
@@ -241,7 +247,7 @@ async function sendInvitationEmail(invitation, event) {
                       Please confirm your attendance using the RSVP link below
                     </p>
                     <a href="${rsvpUrl}" style="background-color: #800000; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 4px; display: inline-block; border: 1px solid #D4AF37;">
-                      RSVP NOW
+                      ⏰ Final Reminder: Your RSVP is due today
                     </a>
                     <p>or click this link to RSVP : ${rsvpUrl} </p> 
                   </div>
